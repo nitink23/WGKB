@@ -1,0 +1,37 @@
+Sample	Cultivar	Treatment
+C01	Chandler	Mock
+C02	Chandler	Mock
+C03	Chandler	Mock
+C04	Chandler	Mock
+C05	Chandler	Mock
+C06	Chandler	Mock
+C07	Chandler	P. cap
+C08	Chandler	P. cap
+C09	Chandler	P. cap
+C10	Chandler	P. cap
+C11	Chandler	P. cap
+C12	Chandler	P. cap
+C13	Chandler	P. pini
+C14	Chandler	P. pini
+C15	Chandler	P. pini
+C16	Chandler	P. pini
+C17	Chandler	P. pini
+C18	Chandler	P. pini
+R01	RX1	Mock
+R02	RX1	Mock
+R03	RX1	Mock
+R04	RX1	Mock
+R05	RX1	Mock
+R06	RX1	Mock
+R07	RX1	P. cap
+R08	RX1	P. cap
+R09	RX1	P. cap
+R10	RX1	P. cap
+R11	RX1	P. cap
+R12	RX1	P. cap
+R13	RX1	P. pini
+R14	RX1	P. pini
+R15	RX1	P. pini
+R16	RX1	P. pini
+R17	RX1	P. pini
+R18	RX1	P. pini
