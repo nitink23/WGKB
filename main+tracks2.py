@@ -19,10 +19,30 @@ condition_choice = st.selectbox(
 
 # Filter columns based on selection
 if condition_choice == 'Variability among replicates (single condition)':
-    condition = st.selectbox('Select condition', ['Chandler Mock'])
-    columns = metadata[(metadata['Cultivar'] == 'Chandler') & (metadata['Treatment'] == 'Mock')]['Sample'].tolist()
+    condition = ['Chandler Mock', 'Chandler P.cap', 'Chandler P.pini', 'RX1 Mock', 'RX1 P.cap', 'RX1 P.pini']
+    selected_condition = st.selectbox('Select condition', condition)
+    
+    columns = []
+    if 'Chandler Mock' in selected_condition:
+        columns.extend(metadata[(metadata['Cultivar'] == 'Chandler') & (metadata['Treatment'] == 'Mock')]['Sample'].tolist())
+
+    if 'Chandler P.cap' in selected_condition:
+        columns.extend(metadata[(metadata['Cultivar'] == 'Chandler') & (metadata['Treatment'] == 'P. cap')]['Sample'].tolist())
+
+    if 'Chandler P.pini' in selected_condition:
+        columns.extend(metadata[(metadata['Cultivar'] == 'Chandler') & (metadata['Treatment'] == 'P. pini')]['Sample'].tolist())
+
+    if 'RX1 Mock' in selected_condition:
+        columns.extend(metadata[(metadata['Cultivar'] == 'RX1') & (metadata['Treatment'] == 'Mock')]['Sample'].tolist())
+
+    if 'RX1 P.cap' in selected_condition:
+        columns.extend(metadata[(metadata['Cultivar'] == 'RX1') & (metadata['Treatment'] == 'P. cap')]['Sample'].tolist())
+
+    if 'RX1 P.pini' in selected_condition:
+        columns.extend(metadata[(metadata['Cultivar'] == 'RX1') & (metadata['Treatment'] == 'P. pini')]['Sample'].tolist())
+
 elif condition_choice == 'Comparison of conditions (averaged)':
-    conditions = ['Chandler Mock', 'Chandler P.cap', 'Chandler P.pini']
+    conditions = ['Chandler Mock', 'Chandler P.cap', 'Chandler P.pini', 'RX1 Mock', 'RX1 P.cap', 'RX1 P.pini']
     selected_conditions = st.multiselect('Select conditions to compare', conditions)
     
     columns = []
@@ -40,6 +60,21 @@ elif condition_choice == 'Comparison of conditions (averaged)':
         pini_samples = metadata[(metadata['Cultivar'] == 'Chandler') & (metadata['Treatment'] == 'P. pini')]['Sample']
         data['Chandler_Ppini_Avg'] = data[pini_samples].mean(axis=1)
         columns.append('Chandler_Ppini_Avg')
+
+    if 'RX1 Mock' in selected_conditions:
+        mock_samples = metadata[(metadata['Cultivar'] == 'RX1') & (metadata['Treatment'] == 'Mock')]['Sample']
+        data['RX1_Mock_Avg'] = data[mock_samples].mean(axis=1)
+        columns.append('RX1_Mock_Avg')
+
+    if 'RX1 P.cap' in selected_conditions:
+        cap_samples = metadata[(metadata['Cultivar'] == 'RX1') & (metadata['Treatment'] == 'P. cap')]['Sample']
+        data['RX1_Pcap_Avg'] = data[cap_samples].mean(axis=1)
+        columns.append('RX1_Pcap_Avg')
+    
+    if 'RX1 P.pini' in selected_conditions:
+        pini_samples = metadata[(metadata['Cultivar'] == 'RX1') & (metadata['Treatment'] == 'P. pini')]['Sample']
+        data['RX1_Ppini_Avg'] = data[pini_samples].mean(axis=1)
+        columns.append('RX1_Ppini_Avg')
 
 # Select rows (GeneIDs)
 rows = st.multiselect('Select rows (GeneIDs)', data.index)
