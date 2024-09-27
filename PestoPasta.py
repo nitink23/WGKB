@@ -108,10 +108,10 @@ def display_formatted_response(response):
 st.title('Custom Circos Plot Generator with Gene Metadata Integration')
 
 # User input for multiple gene IDs
-gene_id_input = st.text_input('Enter Gene IDs (comma-separated)')
+gene_id_input = st.text_input('Enter Gene IDs (space-separated)')
 
 if gene_id_input:
-    gene_ids = [gene_id.strip() for gene_id in gene_id_input.split(',') if gene_id.strip().isdigit()]
+    gene_ids = [gene_id.strip() for gene_id in gene_id_input.split() if gene_id.strip().isdigit()]
 
     if gene_ids:
         # Allow user to select a color for each gene ID
