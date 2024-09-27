@@ -12,7 +12,7 @@ data = pd.DataFrame({
     'Chromosome': ['chr01', 'chr02', 'chr03', 'chr04', 'chr05', 'chr06', 'chr07', 'chr08', 'chr09', 'chr10', 
                    'chr11', 'chr12', 'chr13', 'chr14', 'chr15', 'chr16', 'Pltd'],  
     'Size (bp)': [45207397, 37821870, 35064427, 34823025, 22562875, 39020271, 52418484, 30564197, 24263475,
-                  37707155, 37114715, 31492331, 39757759, 28841373, 20407330, 28711772, 160537]  # Added mitochondria size
+                  37707155, 37114715, 31492331, 39757759, 28841373, 20407330, 28711772, 160537]
 })
 
 # Non-numbered chromosome mapping (for plastid, mitochondrion, etc.)
@@ -51,26 +51,58 @@ def fetch_gene_metadata(gene_ids):
         st.error(f"An error occurred while fetching gene metadata: {e}")
         return None
 
-# Function to format and display the full API response in a listing format
+# Function to format and display the full API response as a useful table
 def display_formatted_response(response):
-    if isinstance(response, dict):
-        # Recursive function to print nested dictionaries in a clean format
-        for key, value in response.items():
-            if isinstance(value, dict):
-                st.write(f"**{key}:**")
-                display_formatted_response(value)  # Recursively display nested dictionaries
-            elif isinstance(value, list):
-                st.write(f"**{key}:**")
-                for index, item in enumerate(value):
-                    st.write(f"  - **Item {index+1}:**")
-                    if isinstance(item, dict):
-                        display_formatted_response(item)  # Display each item in a list if it's a dictionary
-                    else:
-                        st.write(f"  - {item}")
-            else:
-                st.write(f"**{key}:** {value}")
+    if response and 'genes' in response:
+        gene_info_list = []
+
+        # Iterate through each gene in the response
+        for gene_data in response['genes']:
+            gene_info = gene_data.get('gene', {})
+            annotations = gene_info.get('annotations', [])
+            genomic_ranges = gene_info.get('genomic_ranges', [])
+            chromosomes = ', '.join(gene_info.get('chromosomes', []))
+            symbol = gene_info.get('symbol', 'N/A')
+            gene_id = gene_info.get('gene_id', 'N/A')
+            description = gene_info.get('description', 'N/A')
+            taxname = gene_info.get('taxname', 'N/A')
+            common_name = gene_info.get('common_name', 'N/A')
+
+            for annotation in annotations:
+                for genomic_range in genomic_ranges:
+                    for loc in genomic_range.get('range', []):
+                        accession_version = genomic_range.get('accession_version', 'N/A')
+                        begin = loc.get('begin', 'N/A')
+                        end = loc.get('end', 'N/A')
+                        orientation = loc.get('orientation', 'N/A')
+
+                        # Append gene metadata to the list
+                        gene_info_list.append({
+                            'Gene ID': gene_id,
+                            'Symbol': symbol,
+                            'Description': description,
+                            'Taxname': taxname,
+                            'Common Name': common_name,
+                            'Chromosomes': chromosomes,
+                            'Accession Version': accession_version,
+                            'Range Start': begin,
+                            'Range End': end,
+                            'Orientation': orientation,
+                            'Release Date': annotation.get('release_date', 'N/A'),
+                            'Release Name': annotation.get('release_name', 'N/A')
+                        })
+
+        # Convert the list of gene info to a DataFrame
+        gene_df = pd.DataFrame(gene_info_list)
+
+        # Adjust the index to start from 1 instead of the default 0
+        gene_df.index = range(1, len(gene_df) + 1)  # This sets the index starting from 1
+
+        # Display the DataFrame with the adjusted index
+        st.dataframe(gene_df)
+
     else:
-        st.write(response)
+        st.warning("No gene information available in the API response.")
 
 # Streamlit app
 st.title('Custom Circos Plot Generator with Gene Metadata Integration')
@@ -79,7 +111,7 @@ st.title('Custom Circos Plot Generator with Gene Metadata Integration')
 gene_id_input = st.text_input('Enter Gene IDs (comma-separated)')
 
 if gene_id_input:
-    gene_ids = [gene_id.strip() for gene_id in gene_id_input.split(',') if gene_id.strip().isdigit()]  # Ensure valid numeric input
+    gene_ids = [gene_id.strip() for gene_id in gene_id_input.split(',') if gene_id.strip().isdigit()]
 
     if gene_ids:
         # Allow user to select a color for each gene ID
@@ -92,8 +124,9 @@ if gene_id_input:
         gene_metadata = fetch_gene_metadata(gene_ids)
 
         if gene_metadata:
-            # Log the entire API response for debugging
-            st.write(f"Full API Response: {gene_metadata}")
+            # Log the entire API response as a table
+            st.write("Full API Response:")
+            display_formatted_response(gene_metadata.to_dict())  # Convert to dict for tabular format
 
             # Check if genes exist in the response
             if hasattr(gene_metadata, 'genes') and len(gene_metadata.genes) > 0:
@@ -112,7 +145,6 @@ if gene_id_input:
                                 end = int(loc['end'])
                                 orientation = loc.get('orientation', 'plus')  # Get 'orientation' from the correct location
                                 genomic_ranges.append((chrom, start, end, orientation, gene_info['gene_id']))
-                   
                     else:
                         st.warning(f"No genomic ranges available for gene {gene_info['gene_id']}")
 
@@ -126,7 +158,7 @@ if gene_id_input:
                         sector_obj.text(f"{sector_obj.name}", r=110, size=15)
 
                         # Add scatter plot points based on genomic ranges and orientation
-                        scatter_track = sector_obj.add_track((90, 100), r_pad_ratio=0.1)
+                        scatter_track = sector_obj.add_track((95, 100), r_pad_ratio=0.1)
                         scatter_track.axis()
 
                         for chrom, start, end, orientation, gene_id in genomic_ranges:
@@ -172,3 +204,4 @@ if gene_id_input:
         st.error("Please enter valid numeric Gene IDs")
 else:
     st.error("Please enter Gene IDs")
+
