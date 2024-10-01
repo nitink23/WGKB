@@ -107,6 +107,9 @@ def display_formatted_response(response):
 # Streamlit app
 st.title('Custom Circos Plot Generator with Gene Metadata Integration')
 
+# Allow user to upload optional gene expression file
+gene_exp_file = st.file_uploader('Upload a gene expression file (optional)')
+
 # User input for multiple gene IDs
 gene_id_input = st.text_input('Enter Gene IDs (space-separated)')
 
