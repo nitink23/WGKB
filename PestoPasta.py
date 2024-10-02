@@ -108,7 +108,40 @@ def display_formatted_response(response):
 st.title('Custom Circos Plot Generator with Gene Metadata Integration')
 
 # Allow user to upload optional gene expression file
-gene_exp_file = st.file_uploader('Upload a gene expression file (optional)')
+gene_exp_file = st.file_uploader('Upload a gene expression file (optional, must be .csv, .xls or .xlsx)', type=["csv", "xls", "xlsx"])
+
+# Read gene expression columns based on file type
+if gene_exp_file is not None:
+    
+    if str(gene_exp_file).endswith('.csv'):
+        gene_exp_df = pd.read_csv(gene_exp_file)
+        csv = True
+    else:
+        gene_exp_df = pd.read_excel(gene_exp_file)
+        csv = False
+
+    # See if column headers are in row 1 or row 2
+    col_row = st.selectbox('Are the headers in row 1 or row 2?', ['Row 1', 'Row 2'])
+
+    if col_row == 'Row 1':
+        header = 0
+    else:
+        header = 1
+    
+    # Re-read gene_exp_df with correct headers
+    if csv:
+        gene_exp_df = pd.read_csv(gene_exp_file, header = header)
+    else:
+        gene_exp_df = pd.read_excel(gene_exp_file, header = header)
+    
+    gene_exp_cols = gene_exp_df.columns
+
+    # Allow user to specify which columns denote which values
+    gene_exp_gene_ids = st.selectbox("Select which column has the GeneIDs", gene_exp_cols)
+    gene_exp_avg_exp = st.selectbox("Select which column has the average expression level", gene_exp_cols)
+    gene_exp_pini_mock = st.selectbox("Select which column has the log2FC CR10 pini / mock", gene_exp_cols)
+    gene_exp_capsici_mock = st.selectbox("Select which column has the log2FC CR10 capsici / mock", gene_exp_cols)
+    gene_exp_pini_capsici = st.selectbox("Select which column has the log2FC CR10 pini / capsici", gene_exp_cols)
 
 # User input for multiple gene IDs
 gene_id_input = st.text_input('Enter Gene IDs (space-separated)')
