@@ -107,6 +107,10 @@ def display_formatted_response(response):
 # Streamlit app
 st.title('Custom Circos Plot Generator with Gene Metadata Integration')
 
+# Read walnut gene metadata file straight from GitHub
+url = 'https://github.com/nitink23/WGKB/blob/main/ncbi_dataset.tsv'
+walnut_gene_meta = pd.read_csv(url, delimiter='\t')
+
 # Allow user to upload optional gene expression file
 gene_exp_file = st.file_uploader('Upload a gene expression file (optional, must be .csv, .xls or .xlsx)', type=["csv", "xls", "xlsx"])
 
@@ -120,8 +124,8 @@ if gene_exp_file is not None:
         gene_exp_df = pd.read_excel(gene_exp_file)
         csv = False
 
-    # See if column headers are in row 1 or row 2
-    col_row = st.selectbox('Are the headers in row 1 or row 2?', ['Row 1', 'Row 2'])
+    # See if column column headers are in row 1 or row 2
+    col_row = st.selectbox('Are the column headers in row 1 or row 2?', ['Row 1', 'Row 2'])
 
     if col_row == 'Row 1':
         header = 0
