@@ -108,7 +108,7 @@ def display_formatted_response(response):
 st.title('Custom Circos Plot Generator with Gene Metadata Integration')
 
 # Read walnut gene metadata file straight from GitHub
-url = 'https://github.com/nitink23/WGKB/blob/main/ncbi_dataset.tsv'
+url = 'https://raw.githubusercontent.com/nitink23/WGKB/refs/heads/main/ncbi_dataset.tsv?token=GHSAT0AAAAAACYNWGHAVA7NUWPB5QNXTOPEZX7CUWA'
 walnut_gene_meta = pd.read_csv(url, delimiter='\t')
 
 # Allow user to upload optional gene expression file
@@ -141,11 +141,16 @@ if gene_exp_file is not None:
     gene_exp_cols = gene_exp_df.columns
 
     # Allow user to specify which columns denote which values
-    gene_exp_gene_ids = st.selectbox("Select which column has the GeneIDs", gene_exp_cols)
-    gene_exp_avg_exp = st.selectbox("Select which column has the average expression level", gene_exp_cols)
-    gene_exp_pini_mock = st.selectbox("Select which column has the log2FC CR10 pini / mock", gene_exp_cols)
-    gene_exp_capsici_mock = st.selectbox("Select which column has the log2FC CR10 capsici / mock", gene_exp_cols)
-    gene_exp_pini_capsici = st.selectbox("Select which column has the log2FC CR10 pini / capsici", gene_exp_cols)
+    gene_id_col = st.selectbox("Select which column has the GeneIDs", gene_exp_cols)
+    gene_exp_df.rename(columns={gene_id_col: 'Gene ID'}, inplace=True)
+    gene_exp_gene_id = gene_exp_df['Gene ID']
+    gene_exp_avg_exp = gene_exp_df[st.selectbox("Select which column has the average expression level", gene_exp_cols)]
+    gene_exp_pini_mock = gene_exp_df[st.selectbox("Select which column has the log2FC CR10 pini / mock", gene_exp_cols)]
+    gene_exp_capsici_mock = gene_exp_df[st.selectbox("Select which column has the log2FC CR10 capsici / mock", gene_exp_cols)]
+    gene_exp_pini_capsici = gene_exp_df[st.selectbox("Select which column has the log2FC CR10 pini / capsici", gene_exp_cols)]
+
+    # Merged gene expression and walnut genome file
+    gene_merged_df = pd.merge(gene_exp_df, walnut_gene_meta, on='Gene ID', how='inner')
 
 # User input for multiple gene IDs
 gene_id_input = st.text_input('Enter Gene IDs (space-separated)')
