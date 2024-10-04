@@ -108,7 +108,7 @@ def display_formatted_response(response):
 st.title('Custom Circos Plot Generator with Gene Metadata Integration')
 
 # Read walnut gene metadata file straight from GitHub
-url = 'https://raw.githubusercontent.com/nitink23/WGKB/refs/heads/main/ncbi_dataset.tsv?token=GHSAT0AAAAAACYNWGHAVA7NUWPB5QNXTOPEZX7CUWA'
+url = 'https://raw.githubusercontent.com/nitink23/WGKB/main/ncbi_dataset.tsv'
 walnut_gene_meta = pd.read_csv(url, delimiter='\t')
 
 # Allow user to upload optional gene expression file
