@@ -108,7 +108,7 @@ def display_formatted_response(response):
 st.title('Custom Circos Plot Generator with Gene Metadata Integration')
 
 # Read walnut gene metadata file straight from GitHub
-url = 'https://raw.githubusercontent.com/nitink23/WGKB/main/ncbi_dataset.tsv'
+url = 'https://github.com/nitink23/WGKB/blob/main/ncbi_dataset.tsv'
 walnut_gene_meta = pd.read_csv(url, delimiter='\t')
 
 # Allow user to upload optional gene expression file
@@ -141,16 +141,11 @@ if gene_exp_file is not None:
     gene_exp_cols = gene_exp_df.columns
 
     # Allow user to specify which columns denote which values
-    gene_id_col = st.selectbox("Select which column has the GeneIDs", gene_exp_cols)
-    gene_exp_df.rename(columns={gene_id_col: 'Gene ID'}, inplace=True)
-    gene_exp_gene_id = gene_exp_df['Gene ID']
-    gene_exp_avg_exp = gene_exp_df[st.selectbox("Select which column has the average expression level", gene_exp_cols)]
-    gene_exp_pini_mock = gene_exp_df[st.selectbox("Select which column has the log2FC CR10 pini / mock", gene_exp_cols)]
-    gene_exp_capsici_mock = gene_exp_df[st.selectbox("Select which column has the log2FC CR10 capsici / mock", gene_exp_cols)]
-    gene_exp_pini_capsici = gene_exp_df[st.selectbox("Select which column has the log2FC CR10 pini / capsici", gene_exp_cols)]
-
-    # Merged gene expression and walnut genome file
-    gene_merged_df = pd.merge(gene_exp_df, walnut_gene_meta, on='Gene ID', how='inner')
+    gene_exp_gene_ids = st.selectbox("Select which column has the GeneIDs", gene_exp_cols)
+    gene_exp_avg_exp = st.selectbox("Select which column has the average expression level", gene_exp_cols)
+    gene_exp_pini_mock = st.selectbox("Select which column has the log2FC CR10 pini / mock", gene_exp_cols)
+    gene_exp_capsici_mock = st.selectbox("Select which column has the log2FC CR10 capsici / mock", gene_exp_cols)
+    gene_exp_pini_capsici = st.selectbox("Select which column has the log2FC CR10 pini / capsici", gene_exp_cols)
 
 # User input for multiple gene IDs
 gene_id_input = st.text_input('Enter Gene IDs (space-separated)')
@@ -257,15 +252,18 @@ if gene_id_input:
                                 x = start
                                 
                                 if gene_id in gene_exp_df[gene_exp_gene_ids].astype(str).values:
-                                    # Get the log2FC value from the user's gene expression file
+                                # Get the log2FC value from the user's gene expression file
                                     log2fc_value = gene_exp_df[gene_exp_df[gene_exp_gene_ids] == int(gene_id)][gene_exp_pini_mock].values[0]
 
                                     # Calculate vmin and vmax from the range of log2FC values in the expression file
                                     vmin = gene_exp_df[gene_exp_pini_mock].min()  # Min log2FC value
                                     vmax = gene_exp_df[gene_exp_pini_mock].max()  # Max log2FC value
 
-                                    # Plot bar based on genomic start position (x) and log2FC (y)
+                                    st.write(f"Plotting bar for {gene_id} on {chrom_name} with log2FC: {log2fc_value} at position {x}")
+
+                                # Plot bar based on genomic start position (x) and log2FC (y)
                                     bar_track.bar([x], [log2fc_value], ec=gene_colors[str(gene_id)],lw=0.5, vmax=vmax, vmin=vmin)
+
 
                     # Render the plot using Matplotlib
                     fig = circos.plotfig()
