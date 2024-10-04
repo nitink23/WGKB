@@ -231,9 +231,9 @@ if gene_id_input:
                                     # Use the color selected for the gene ID
                                     scatter_track.scatter([x], [y], color=gene_colors[str(gene_id)], label=f'Gene Start: {start} (Orientation: {orientation_value})')
 
-                        # Add bar track for log2FC values from gene expression
-                        bar_track = sector_obj.add_track((70, 90), r_pad_ratio=0.1)
-                        bar_track.axis()
+                        # Add another scatter track for log2FC pini / mock values from gene expression
+                        scatter2_track = sector_obj.add_track((70, 90), r_pad_ratio=0.1)
+                        scatter2_track.axis()
 
                         # Iterate through genomic ranges to match with gene expression data
                         for chrom, start, _, _, gene_id in genomic_ranges:
@@ -262,8 +262,7 @@ if gene_id_input:
                                     st.write(f"Plotting bar for {gene_id} on {chrom_name} with log2FC: {log2fc_value} at position {x}")
 
                                 # Plot bar based on genomic start position (x) and log2FC (y)
-                                    bar_track.bar([x], [log2fc_value], ec=gene_colors[str(gene_id)],lw=0.5, vmax=vmax, vmin=vmin)
-
+                                    scatter2_track.scatter([x], [log2fc_value], color=gene_colors.get(str(gene_id)),vmin=vmin, vmax=vmax)
 
                     # Render the plot using Matplotlib
                     fig = circos.plotfig()
