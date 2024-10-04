@@ -236,6 +236,37 @@ if gene_id_input:
                                     # Use the color selected for the gene ID
                                     scatter_track.scatter([x], [y], color=gene_colors[str(gene_id)], label=f'Gene Start: {start} (Orientation: {orientation_value})')
 
+                        # Add bar track for log2FC values from gene expression
+                        bar_track = sector_obj.add_track((70, 90), r_pad_ratio=0.1)
+                        bar_track.axis()
+
+                        # Iterate through genomic ranges to match with gene expression data
+                        for chrom, start, _, _, gene_id in genomic_ranges:
+                            # Check if the accession_version belongs to non-numbered chromosomes (e.g., plastid)
+                            if chrom in non_numbered_chromosome:
+                                chrom_name = non_numbered_chromosome[chrom]
+                            else:
+                                chrom_name = numbered_chromosomes.get(chrom, None)
+                                
+                            if chrom_name is None:
+                                st.warning(f"Chromosome {chrom} not found in mapping. Skipping.")
+                                continue #Skip if chromosome is not found
+                            
+                            # Ensure the chromosome name matches the sector (e.g., 'Pltd', 'chr01')
+                            if chrom_name == sector_obj.name:
+                                x = start
+                                
+                                if gene_id in gene_exp_df[gene_exp_gene_ids].astype(str).values:
+                                    # Get the log2FC value from the user's gene expression file
+                                    log2fc_value = gene_exp_df[gene_exp_df[gene_exp_gene_ids] == int(gene_id)][gene_exp_pini_mock].values[0]
+
+                                    # Calculate vmin and vmax from the range of log2FC values in the expression file
+                                    vmin = gene_exp_df[gene_exp_pini_mock].min()  # Min log2FC value
+                                    vmax = gene_exp_df[gene_exp_pini_mock].max()  # Max log2FC value
+
+                                    # Plot bar based on genomic start position (x) and log2FC (y)
+                                    bar_track.bar([x], [log2fc_value], ec=gene_colors[str(gene_id)],lw=0.5, vmax=vmax, vmin=vmin)
+
                     # Render the plot using Matplotlib
                     fig = circos.plotfig()
 
