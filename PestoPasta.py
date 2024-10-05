@@ -295,7 +295,7 @@ if gene_id_input:
 
                                     scatter3_track.scatter([x], [log2fc_CM], color=gene_colors.get(str(gene_id)),vmin=vmin_CM, vmax=vmax_CM)
 
-                        # Add another scatter track for log2FC CR10 capsici / mock
+                        # Add another scatter track for log2FC CR10 pini / capsici 
                         scatter4_track = sector_obj.add_track((35, 50), r_pad_ratio=0.1)
                         scatter4_track.axis()
 
