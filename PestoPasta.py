@@ -230,9 +230,9 @@ if gene_id_input:
                                 if y is not None:
                                     # Use the color selected for the gene ID
                                     scatter_track.scatter([x], [y], color=gene_colors[str(gene_id)], label=f'Gene Start: {start} (Orientation: {orientation_value})')
-
-                        # Add another scatter track for log2FC pini / mock values from gene expression
-                        scatter2_track = sector_obj.add_track((70, 90), r_pad_ratio=0.1)
+                        
+                        # Add another scatter track for log2FC CR10 pini / mock values from gene expression
+                        scatter2_track = sector_obj.add_track((75, 90), r_pad_ratio=0.1)
                         scatter2_track.axis()
 
                         # Iterate through genomic ranges to match with gene expression data
@@ -253,16 +253,78 @@ if gene_id_input:
                                 
                                 if gene_id in gene_exp_df[gene_exp_gene_ids].astype(str).values:
                                 # Get the log2FC value from the user's gene expression file
-                                    log2fc_value = gene_exp_df[gene_exp_df[gene_exp_gene_ids] == int(gene_id)][gene_exp_pini_mock].values[0]
+                                    log2fc_PM = gene_exp_df[gene_exp_df[gene_exp_gene_ids] == int(gene_id)][gene_exp_pini_mock].values[0]
 
                                     # Calculate vmin and vmax from the range of log2FC values in the expression file
-                                    vmin = gene_exp_df[gene_exp_pini_mock].min()  # Min log2FC value
-                                    vmax = gene_exp_df[gene_exp_pini_mock].max()  # Max log2FC value
+                                    vmin_PM = gene_exp_df[gene_exp_pini_mock].min()  # Min log2FC value
+                                    vmax_PM = gene_exp_df[gene_exp_pini_mock].max()  # Max log2FC value
 
-                                    st.write(f"Plotting bar for {gene_id} on {chrom_name} with log2FC: {log2fc_value} at position {x}")
+                                    st.write(f"Plotting scatter for {gene_id} on {chrom_name} with log2FC CR10 pini / mock: {log2fc_PM} at position {x}")
 
                                 # Plot bar based on genomic start position (x) and log2FC (y)
-                                    scatter2_track.scatter([x], [log2fc_value], color=gene_colors.get(str(gene_id)),vmin=vmin, vmax=vmax)
+                                    scatter2_track.scatter([x], [log2fc_PM], color=gene_colors.get(str(gene_id)),vmin=vmin_PM, vmax=vmax_PM)
+
+                        # Add another scatter track for log2FC CR10 capsici / mock
+                        scatter3_track = sector_obj.add_track((55, 70), r_pad_ratio=0.1)
+                        scatter3_track.axis()
+
+                        # Iterate through genomic ranges to match with gene expression data
+                        for chrom, start, _, _, gene_id in genomic_ranges:
+                            # Check if the accession_version belongs to non-numbred chromosomes (e.g., plastid)
+                            if chrom in non_numbered_chromosome:
+                                chrom_name = non_numbered_chromosome[chrom]
+                            else:
+                                chrom_name = numbered_chromosomes.get(chrom, None)
+
+                            if chrom_name is None:
+                                st.warning(f"Chromosome {chrom} not found in mapping. Skipping.")
+                                continue #Skip if chromosome is not found
+
+                            # Ensure the chromosome name matches the sector (e.g., 'Pltd', 'chr01')
+                            if chrom_name == sector_obj.name:
+                                x = start
+
+                                if gene_id in gene_exp_df[gene_exp_gene_ids].astype(str).values:
+                                    
+                                    log2fc_CM = gene_exp_df[gene_exp_df[gene_exp_gene_ids] == int(gene_id)][gene_exp_capsici_mock].values[0]
+
+                                    vmin_CM = gene_exp_df[gene_exp_capsici_mock].min()
+                                    vmax_CM = gene_exp_df[gene_exp_capsici_mock].max()
+
+                                    st.write(f"Plotting scatter for {gene_id} on {chrom_name} with log2FC CR10 capsici / mock: {log2fc_CM} at position {x}")
+
+                                    scatter3_track.scatter([x], [log2fc_CM], color=gene_colors.get(str(gene_id)),vmin=vmin_CM, vmax=vmax_CM)
+
+                        # Add another scatter track for log2FC CR10 capsici / mock
+                        scatter4_track = sector_obj.add_track((35, 50), r_pad_ratio=0.1)
+                        scatter4_track.axis()
+
+                        # Iterate through genomic ranges to match with gene expression data
+                        for chrom, start, _, _, gene_id in genomic_ranges:
+                            # Check if the accession_version belongs to non-numbred chromosomes (e.g., plastid)
+                            if chrom in non_numbered_chromosome:
+                                chrom_name = non_numbered_chromosome[chrom]
+                            else:
+                                chrom_name = numbered_chromosomes.get(chrom, None)
+
+                            if chrom_name is None:
+                                st.warning(f"Chromosome {chrom} not found in mapping. Skipping.")
+                                continue #Skip if chromosome is not found
+
+                            # Ensure the chromosome name matches the sector (e.g., 'Pltd', 'chr01')
+                            if chrom_name == sector_obj.name:
+                                x = start
+
+                                if gene_id in gene_exp_df[gene_exp_gene_ids].astype(str).values:
+                                    
+                                    log2fc_PC = gene_exp_df[gene_exp_df[gene_exp_gene_ids] == int(gene_id)][gene_exp_pini_capsici].values[0]
+
+                                    vmin_PC = gene_exp_df[gene_exp_pini_capsici].min()
+                                    vmax_PC = gene_exp_df[gene_exp_pini_capsici].max()
+
+                                    st.write(f"Plotting scatter for {gene_id} on {chrom_name} with log2FC CR10 pini / capsici: {log2fc_PC} at position {x}")
+
+                                    scatter4_track.scatter([x], [log2fc_PC], color=gene_colors.get(str(gene_id)),vmin=vmin_PC, vmax=vmax_PC)
 
                     # Render the plot using Matplotlib
                     fig = circos.plotfig()
