@@ -326,6 +326,36 @@ if gene_id_input:
 
                                     scatter4_track.scatter([x], [log2fc_PC], color=gene_colors.get(str(gene_id)),vmin=vmin_PC, vmax=vmax_PC)
 
+                        # Add bar track for Expression level
+                        bar_track = sector_obj.add_track((10, 30), r_pad_ratio=0.1)
+                        bar_track.axis()
+
+                        # Iterate through genomic ranges to match with gene expression data
+                        for chrom, start, _, _, gene_id in genomic_ranges:
+                            # Check if the accession_version belongs to non-numbred chromosomes (e.g., plastid)
+                            if chrom in non_numbered_chromosome:
+                                chrom_name = non_numbered_chromosome[chrom]
+                            else:
+                                chrom_name = numbered_chromosomes.get(chrom, None)
+
+                            if chrom_name is None:
+                                st.warning(f"Chromosome {chrom} not found in mapping. Skipping.")
+                                continue #Skip if chromosome is not found
+
+                            # Ensure the chromosome name matches the sector (e.g., 'Pltd', 'chr01')
+                            if chrom_name == sector_obj.name:
+                                x = start
+
+                                if gene_id in gene_exp_df[gene_exp_gene_ids].astype(str).values:
+                                    
+                                    AvExpLv = gene_exp_df[gene_exp_df[gene_exp_gene_ids] == int(gene_id)][gene_exp_avg_exp].values[0]
+                                    
+                                    vmax_AEL = gene_exp_df[gene_exp_avg_exp].max()
+
+                                    st.write(f"Plotting bar for {gene_id} on {chrom_name} with Average Expression Level: {AvExpLv} at position {x}")
+
+                                    bar_track.bar([x], [AvExpLv], ec=gene_colors[str(gene_id)], lw=0.9, vmin=0, vmax=vmax_AEL)
+
                     # Render the plot using Matplotlib
                     fig = circos.plotfig()
 
