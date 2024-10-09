@@ -6,6 +6,7 @@ from ncbi.datasets import GeneApi
 from ncbi.datasets.openapi import ApiClient
 from ncbi.datasets.openapi.rest import ApiException
 from ncbi.datasets.openapi.model.v1_orientation import V1Orientation
+import numpy as np
 
 # Load data (Chromosome sizes)
 data = pd.DataFrame({
@@ -108,14 +109,14 @@ def display_formatted_response(response):
 st.title('Custom Circos Plot Generator with Gene Metadata Integration')
 
 # Read walnut gene metadata file straight from GitHub
-url = 'https://github.com/nitink23/WGKB/blob/main/ncbi_dataset.tsv'
+url = 'https://raw.githubusercontent.com/nitink23/WGKB/main/ncbi_dataset.tsv'
 walnut_gene_meta = pd.read_csv(url, delimiter='\t')
 
 # Allow user to upload optional gene expression file
 gene_exp_file = st.file_uploader('Upload a gene expression file (optional, must be .csv, .xls or .xlsx)', type=["csv", "xls", "xlsx"])
 
 # Read gene expression columns based on file type
-if gene_exp_file is not None:
+if gene_exp_file:
     
     if str(gene_exp_file).endswith('.csv'):
         gene_exp_df = pd.read_csv(gene_exp_file)
@@ -146,6 +147,28 @@ if gene_exp_file is not None:
     gene_exp_pini_mock = st.selectbox("Select which column has the log2FC CR10 pini / mock", gene_exp_cols)
     gene_exp_capsici_mock = st.selectbox("Select which column has the log2FC CR10 capsici / mock", gene_exp_cols)
     gene_exp_pini_capsici = st.selectbox("Select which column has the log2FC CR10 pini / capsici", gene_exp_cols)
+    
+    # Rename col to 'Gene ID' and create merged dataframe
+    gene_exp_df = gene_exp_df.rename(columns={gene_exp_gene_ids: 'Gene ID'})
+    gene_exp_gene_ids = 'Gene ID'
+    full_data = pd.merge(gene_exp_df, walnut_gene_meta, on='Gene ID', how='inner')
+
+def get_colormap(data_col):
+    # input: column to plot that needs colors
+    # output: colormap
+    vectorized_color_col = np.array(data_col).reshape(-1, 1)
+
+    if vectorized_color_col.shape[0] == 0:
+        return ['#ff0000'] * len(data_col)
+    
+    mean = vectorized_color_col.mean()
+    sd = vectorized_color_col.std()
+
+    normalized_arr = (vectorized_color_col - mean) / sd
+
+    cmap = plt.get_cmap('coolwarm')
+    colors = [cmap(value) for value in normalized_arr]
+    return colors
 
 # User input for multiple gene IDs
 gene_id_input = st.text_input('Enter Gene IDs (space-separated)')
@@ -235,6 +258,8 @@ if gene_id_input:
                         scatter2_track = sector_obj.add_track((75, 90), r_pad_ratio=0.1)
                         scatter2_track.axis()
 
+                        # Get colormap for 
+
                         # Iterate through genomic ranges to match with gene expression data
                         for chrom, start, _, _, gene_id in genomic_ranges:
                             # Check if the accession_version belongs to non-numbered chromosomes (e.g., plastid)
@@ -252,7 +277,7 @@ if gene_id_input:
                                 x = start
                                 
                                 if gene_id in gene_exp_df[gene_exp_gene_ids].astype(str).values:
-                                # Get the log2FC value from the user's gene expression file
+                                    # Get the log2FC value from the user's gene expression file
                                     log2fc_PM = gene_exp_df[gene_exp_df[gene_exp_gene_ids] == int(gene_id)][gene_exp_pini_mock].values[0]
 
                                     # Calculate vmin and vmax from the range of log2FC values in the expression file
@@ -261,7 +286,7 @@ if gene_id_input:
 
                                     st.write(f"Plotting scatter for {gene_id} on {chrom_name} with log2FC CR10 pini / mock: {log2fc_PM} at position {x}")
 
-                                # Plot bar based on genomic start position (x) and log2FC (y)
+                                    # Plot bar based on genomic start position (x) and log2FC (y)
                                     scatter2_track.scatter([x], [log2fc_PM], color=gene_colors.get(str(gene_id)),vmin=vmin_PM, vmax=vmax_PM)
 
                         # Add another scatter track for log2FC CR10 capsici / mock
