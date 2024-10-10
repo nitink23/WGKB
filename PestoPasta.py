@@ -288,6 +288,9 @@ if gene_id_input:
 
                                     # Plot bar based on genomic start position (x) and log2FC (y)
                                     scatter2_track.scatter([x], [log2fc_PM], color=gene_colors.get(str(gene_id)),vmin=vmin_PM, vmax=vmax_PM)
+                                else:
+                                    # Display a warning message if the gene ID is not found in the uploaded file
+                                    st.warning(f"No metadata available for Gene ID {gene_id} in the uploaded file.")
 
                         # Add another scatter track for log2FC CR10 capsici / mock
                         scatter3_track = sector_obj.add_track((55, 70), r_pad_ratio=0.1)
