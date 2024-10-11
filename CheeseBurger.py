@@ -44,9 +44,28 @@ def main() -> None:
     url = 'https://raw.githubusercontent.com/nitink23/WGKB/main/ncbi_dataset.tsv'
     walnut_gene_meta = pd.read_csv(url, delimiter='\t')
 
-    if gene_exp_file:
-        gene_exp_df, gene_exp_gene_ids, gene_exp_avg_exp, gene_exp_pini_mock, gene_exp_capsici_mock, gene_exp_pini_capsici = read_gene_exp_file(gene_exp_file)
-        full_data = pd.merge(gene_exp_df, walnut_gene_meta, on='Gene ID', how='inner')
+    all_genes = None
+    full_data = None
+    gene_exp_gene_ids, gene_exp_avg_exp, gene_exp_pini_mock, gene_exp_capsici_mock, gene_exp_pini_capsici = None, None, None, None, None
+
+    try:
+        if gene_exp_file:
+            gene_exp_df, gene_exp_gene_ids, gene_exp_avg_exp, gene_exp_pini_mock, gene_exp_capsici_mock, gene_exp_pini_capsici = read_gene_exp_file(gene_exp_file)
+            full_data = pd.merge(gene_exp_df, walnut_gene_meta, on='Gene ID', how='inner')
+
+            all_genes = st.checkbox('Display genes in gene expression file')
+
+            # Check to see if there are string values in each of the columns provided
+            for val_1, val_2, val_3, val_4, val_5 in zip(full_data[gene_exp_gene_ids], full_data[gene_exp_avg_exp], full_data[gene_exp_pini_mock], \
+                                                         full_data[gene_exp_capsici_mock], full_data[gene_exp_pini_capsici]):
+                values = (val_1, val_2, val_3, val_4, val_5)
+
+                if all(isinstance(value, str) for value in values):
+
+                    st.warning('At least one of the columns selected contains string values. The app can only read integers.')
+                    return
+    except KeyError:
+        st.warning('WARNING: The columns entered cannot be parsed correctly.')
 
     # User input for multiple gene IDs
     gene_id_input = st.text_input('Enter Gene IDs (space-separated)')
@@ -72,26 +91,16 @@ def main() -> None:
         gene_metadata = fetch_gene_metadata(gene_ids)
         genomic_ranges = display_gene_meta(gene_metadata, gene_ids)
         if len(genomic_ranges) <= 0:
-            gene_id_input = False
+            gene_id_input = []
             st.warning(f"No valid genomic ranges found for Gene IDs: {', '.join(gene_ids)}")
-    
-    all_genes = st.checkbox('Display genes in gene expression file')
 
-    if gene_exp_file or gene_id_input:
-        # Check to see if there are string values in each of the columns provided
-        for val_1, val_2, val_3, val_4, val_5 in zip(full_data[gene_exp_gene_ids], full_data[gene_exp_avg_exp], full_data[gene_exp_pini_mock], \
-                                                     full_data[gene_exp_capsici_mock], full_data[gene_exp_pini_capsici]):
-            values = (val_1, val_2, val_3, val_4, val_5)
-
-        if all(isinstance(value, str) for value in values):
-
-            st.warning('At least one of the columns selected contains string values. The app can only read integers.')
-            return
-            
-        display_circos_plot(data, genomic_ranges, chrom_dict, gene_colors, full_data, all_genes, \
-                        gene_exp_gene_ids, gene_exp_avg_exp, gene_exp_pini_mock, gene_exp_capsici_mock, gene_exp_pini_capsici)
-                
-
+    if all_genes or gene_id_input:
+        
+        try:
+            display_circos_plot(data, genomic_ranges, chrom_dict, gene_colors, full_data, all_genes, \
+                                gene_exp_gene_ids, gene_exp_avg_exp, gene_exp_pini_mock, gene_exp_capsici_mock, gene_exp_pini_capsici)
+        except KeyError:
+            st.warning('WARNING: The columns entered cannot be parsed correctly.')
 
 
 def fetch_gene_metadata(gene_ids):
@@ -237,15 +246,15 @@ def display_gene_meta(gene_metadata, gene_ids: list) -> list:
                         end = int(loc['end'])
                         orientation = loc.get('orientation', 'plus')  # Get 'orientation' from the correct location
                         genomic_ranges.append((chrom, start, end, orientation, gene_info['gene_id']))
-                return genomic_ranges
             else:
                 st.warning(f"No genomic ranges available for gene {gene_info['gene_id']}")
+        return genomic_ranges
     else:
         st.warning(f'No gene ID metadata found for {gene_ids}')
 
 
-def add_point(chrom: str, chrom_dict: dict, sector_obj, orientation, scatter_track, scatter2_track, scatter3_track, scatter4_track, \
-              bar_track, x: int, gene_colors, gene_id: int, full_data, gene_exp_gene_ids: str, gene_exp_pini_mock: str, \
+def add_point(chrom: str, chrom_dict: dict, inputted_point: bool, sector_obj, orientation, scatter_track, scatter2_track, scatter3_track, \
+              scatter4_track, bar_track, x: int, gene_colors, gene_id: int, full_data, gene_exp_gene_ids: str, gene_exp_pini_mock: str, \
               gene_exp_capsici_mock: str, gene_exp_pini_capsici: str, gene_exp_avg_exp: str, color_1, color_2, color_3, bar_color):
     
     if chrom in chrom_dict:
@@ -268,42 +277,46 @@ def add_point(chrom: str, chrom_dict: dict, sector_obj, orientation, scatter_tra
             
         # Assign y value based on orientation
         y = 1 if orientation_value == 'plus' else 0
-            
-        if str(gene_id) in full_data[gene_exp_gene_ids].astype(str).values:
-            # Get the log2FC values from the user's gene expression file
-            log2fc_PM = full_data[full_data[gene_exp_gene_ids] == int(gene_id)][gene_exp_pini_mock].values[0]
-            log2fc_CM = full_data[full_data[gene_exp_gene_ids] == int(gene_id)][gene_exp_capsici_mock].values[0]
-            log2fc_PC = full_data[full_data[gene_exp_gene_ids] == int(gene_id)][gene_exp_pini_capsici].values[0]
-            avg_exp_lvl = full_data[full_data[gene_exp_gene_ids] == int(gene_id)][gene_exp_avg_exp].values[0]
 
-            # Calculate vmin and vmax from the range of log2FC values in the expression file
-            vmin_PM = full_data[gene_exp_pini_mock].min()
-            vmax_PM = full_data[gene_exp_pini_mock].max()
-                        
-            vmin_CM = full_data[gene_exp_capsici_mock].min()
-            vmax_CM = full_data[gene_exp_capsici_mock].max()
+        if full_data is not None:
 
-            vmin_PC = full_data[gene_exp_pini_capsici].min()
-            vmax_PC = full_data[gene_exp_pini_capsici].max()
+            if str(gene_id) in full_data[gene_exp_gene_ids].astype(str).values:
+                # Get the log2FC values from the user's gene expression file
+                log2fc_PM = full_data[full_data[gene_exp_gene_ids] == int(gene_id)][gene_exp_pini_mock].values[0]
+                log2fc_CM = full_data[full_data[gene_exp_gene_ids] == int(gene_id)][gene_exp_capsici_mock].values[0]
+                log2fc_PC = full_data[full_data[gene_exp_gene_ids] == int(gene_id)][gene_exp_pini_capsici].values[0]
+                avg_exp_lvl = full_data[full_data[gene_exp_gene_ids] == int(gene_id)][gene_exp_avg_exp].values[0]
 
-            vmax_ael = full_data[gene_exp_avg_exp].max()
+                # Calculate vmin and vmax from the range of log2FC values in the expression file
+                vmin_PM = full_data[gene_exp_pini_mock].min()
+                vmax_PM = full_data[gene_exp_pini_mock].max()
 
-            # Plot with correct color
-            if color_1 is not None or color_2 is not None or color_3 is not None:
-                scatter2_track.scatter([x], [log2fc_PM], color=color_1, vmin=vmin_PM, vmax=vmax_PM)
-                scatter3_track.scatter([x], [log2fc_CM], color=color_2, vmin=vmin_CM, vmax=vmax_CM)
-                scatter4_track.scatter([x], [log2fc_PC], color=color_3, vmin=vmin_PC, vmax=vmax_PC)
-                bar_track.bar([x], [avg_exp_lvl], ec=bar_color, lw=0.9, vmin=0, vmax=vmax_ael)
+                vmin_CM = full_data[gene_exp_capsici_mock].min()
+                vmax_CM = full_data[gene_exp_capsici_mock].max()
+
+                vmin_PC = full_data[gene_exp_pini_capsici].min()
+                vmax_PC = full_data[gene_exp_pini_capsici].max()
+
+                vmax_ael = full_data[gene_exp_avg_exp].max()
+
+                # Plot with correct color
+                if color_1 is not None or color_2 is not None or color_3 is not None:
+                    scatter2_track.scatter([x], [log2fc_PM], color=color_1, vmin=vmin_PM, vmax=vmax_PM)
+                    scatter3_track.scatter([x], [log2fc_CM], color=color_2, vmin=vmin_CM, vmax=vmax_CM)
+                    scatter4_track.scatter([x], [log2fc_PC], color=color_3, vmin=vmin_PC, vmax=vmax_PC)
+                    bar_track.bar([x], [avg_exp_lvl], ec=bar_color, lw=0.9, vmin=0, vmax=vmax_ael)
+                if inputted_point:
+                    scatter_track.scatter([x], [y], color=gene_colors[gene_id], s=70)
+                    scatter2_track.scatter([x], [log2fc_PM], color=gene_colors[gene_id], vmin=vmin_PM, vmax=vmax_PM, s=70)
+                    scatter3_track.scatter([x], [log2fc_CM], color=gene_colors[gene_id], vmin=vmin_CM, vmax=vmax_CM, s=70)
+                    scatter4_track.scatter([x], [log2fc_PC], color=gene_colors[gene_id], vmin=vmin_PC, vmax=vmax_PC, s=70)
+                    bar_track.bar([x], [avg_exp_lvl], ec=gene_colors[gene_id], lw=0.9, vmin=0, vmax=vmax_ael)
+
             else:
-                scatter_track.scatter([x], [y], color=gene_colors[gene_id], s=70)
-                scatter2_track.scatter([x], [log2fc_PM], color=gene_colors[gene_id], vmin=vmin_PM, vmax=vmax_PM, s=70)
-                scatter3_track.scatter([x], [log2fc_CM], color=gene_colors[gene_id], vmin=vmin_CM, vmax=vmax_CM, s=70)
-                scatter4_track.scatter([x], [log2fc_PC], color=gene_colors[gene_id], vmin=vmin_PC, vmax=vmax_PC, s=70)
-                bar_track.bar([x], [avg_exp_lvl], ec=gene_colors[gene_id], lw=0.9, vmin=0, vmax=vmax_ael)
-        
+                # Display a warning message if the gene ID is not found in the uploaded file
+                st.warning(f"No metadata available for Gene ID {gene_id} in the uploaded file.")
         else:
-            # Display a warning message if the gene ID is not found in the uploaded file
-            st.warning(f"No metadata available for Gene ID {gene_id} in the uploaded file.")
+            scatter_track.scatter([x], [y], color=gene_colors[gene_id], s=70)
 
 
 def display_circos_plot(data: dict, genomic_ranges: list, chrom_dict: dict, gene_colors: dict, full_data, all_genes, \
@@ -312,11 +325,14 @@ def display_circos_plot(data: dict, genomic_ranges: list, chrom_dict: dict, gene
     sectors = {str(row[1]['Chromosome']): row[1]['Size (bp)'] for row in data.iterrows()}
     circos = Circos(sectors, space=5)
 
-    colors_1 = get_colormap(full_data[gene_exp_pini_mock])
-    colors_2 = get_colormap(full_data[gene_exp_capsici_mock])
-    colors_3 = get_colormap(full_data[gene_exp_pini_capsici])
+    color_1, color_2, color_3, bar_color = None, None, None, None
 
-    bar_color = st.color_picker(f"Pick a color for bar plot on track 5", '#ff0000', key=f"color_picker")
+    if full_data is not None:
+        colors_1 = get_colormap(full_data[gene_exp_pini_mock])
+        colors_2 = get_colormap(full_data[gene_exp_capsici_mock])
+        colors_3 = get_colormap(full_data[gene_exp_pini_capsici])
+
+        bar_color = st.color_picker(f"Pick a color for bar plot on track 5", '#ff0000', key=f"color_picker")
 
     for index, sector_obj in enumerate(circos.sectors):
         # Plot sector name
@@ -342,6 +358,8 @@ def display_circos_plot(data: dict, genomic_ranges: list, chrom_dict: dict, gene
         bar_track = sector_obj.add_track((10, 30), r_pad_ratio=0.1)
         bar_track.axis()
 
+        inputted_point = False
+
         if all_genes:
             chr_data = full_data[full_data['Chromosome'] == str(index+1)].reset_index(drop=True)
 
@@ -356,14 +374,14 @@ def display_circos_plot(data: dict, genomic_ranges: list, chrom_dict: dict, gene
                 orientation = chr_data['Orientation'][row_num]
                 gene_id = int(chr_data['Gene ID'][row_num])
 
-                add_point(chrom, chrom_dict, sector_obj, orientation, scatter_track, scatter2_track, scatter3_track, scatter4_track, \
+                add_point(chrom, chrom_dict, inputted_point, sector_obj, orientation, scatter_track, scatter2_track, scatter3_track, scatter4_track, \
                           bar_track, x, gene_colors, gene_id, full_data, gene_exp_gene_ids, gene_exp_pini_mock, \
                           gene_exp_capsici_mock, gene_exp_pini_capsici, gene_exp_avg_exp, color_1, color_2, color_3, bar_color)
 
         if genomic_ranges:
-            color_1, color_2, color_3 = None, None, None
+            inputted_point = True
             for chrom, x, _, orientation, gene_id in genomic_ranges:
-                add_point(chrom, chrom_dict, sector_obj, orientation, scatter_track, scatter2_track, scatter3_track, scatter4_track, \
+                add_point(chrom, chrom_dict, inputted_point, sector_obj, orientation, scatter_track, scatter2_track, scatter3_track, scatter4_track, \
                           bar_track, x, gene_colors, int(gene_id), full_data, gene_exp_gene_ids, gene_exp_pini_mock, \
                           gene_exp_capsici_mock, gene_exp_pini_capsici, gene_exp_avg_exp, color_1, color_2, color_3, bar_color)
 
