@@ -8,52 +8,106 @@ from ncbi.datasets.openapi.rest import ApiException
 from ncbi.datasets.openapi.model.v1_orientation import V1Orientation
 import numpy as np
 
-# Load data (Chromosome sizes)
-data = pd.DataFrame({
+
+def main() -> None:
+    data = pd.DataFrame({
     'Chromosome': ['chr01', 'chr02', 'chr03', 'chr04', 'chr05', 'chr06', 'chr07', 'chr08', 'chr09', 'chr10', 
                    'chr11', 'chr12', 'chr13', 'chr14', 'chr15', 'chr16', 'Pltd'],  
     'Size (bp)': [45207397, 37821870, 35064427, 34823025, 22562875, 39020271, 52418484, 30564197, 24263475,
-                  37707155, 37114715, 31492331, 39757759, 28841373, 20407330, 28711772, 160537]
-})
+                  37707155, 37114715, 31492331, 39757759, 28841373, 20407330, 28711772, 160537]})
+    gene_colors = {}
+    chrom_dict = {
+        'NC_049901.1': 'chr01',
+        'NC_049902.1': 'chr02',
+        'NC_049903.1': 'chr03',
+        'NC_049904.1': 'chr04',
+        'NC_049905.1': 'chr05',
+        'NC_049906.1': 'chr06',
+        'NC_049907.1': 'chr07',
+        'NC_049908.1': 'chr08',
+        'NC_049909.1': 'chr09',
+        'NC_049910.1': 'chr10',
+        'NC_049911.1': 'chr11',
+        'NC_049912.1': 'chr12',
+        'NC_049913.1': 'chr13',
+        'NC_049914.1': 'chr14',
+        'NC_049915.1': 'chr15',
+        'NC_049916.1': 'chr16',
+        'NC_028617.1': 'Pltd'}
 
-# Non-numbered chromosome mapping (for plastid, mitochondrion, etc.)
-non_numbered_chromosome = {
-    'NC_028617.1': 'Pltd'  # Plastid for Juglans regia (English walnut)
-}
+    st.title('Custom Circos Plot Generator with Gene Metadata Integration')
 
-numbered_chromosomes = {
-    'NC_049901.1': 'chr01',
-    'NC_049902.1': 'chr02',
-    'NC_049903.1': 'chr03',
-    'NC_049904.1': 'chr04',
-    'NC_049905.1': 'chr05',
-    'NC_049906.1': 'chr06',
-    'NC_049907.1': 'chr07',
-    'NC_049908.1': 'chr08',
-    'NC_049909.1': 'chr09',
-    'NC_049910.1': 'chr10',
-    'NC_049911.1': 'chr11',
-    'NC_049912.1': 'chr12',
-    'NC_049913.1': 'chr13',
-    'NC_049914.1': 'chr14',
-    'NC_049915.1': 'chr15',
-    'NC_049916.1': 'chr16'
-}
+    # Allow user to upload optional gene expression file
+    gene_exp_file = st.file_uploader('Upload a gene expression file (optional, must be .csv, .xls or .xlsx)', type=["csv", "xls", "xlsx"])
 
-# Function to fetch gene metadata using GeneApi
+    # Read walnut gene metadata file straight from GitHub
+    url = 'https://raw.githubusercontent.com/nitink23/WGKB/main/ncbi_dataset.tsv'
+    walnut_gene_meta = pd.read_csv(url, delimiter='\t')
+
+    if gene_exp_file:
+        gene_exp_df, gene_exp_gene_ids, gene_exp_avg_exp, gene_exp_pini_mock, gene_exp_capsici_mock, gene_exp_pini_capsici = read_gene_exp_file(gene_exp_file)
+        full_data = pd.merge(gene_exp_df, walnut_gene_meta, on='Gene ID', how='inner')
+
+    # User input for multiple gene IDs
+    gene_id_input = st.text_input('Enter Gene IDs (space-separated)')
+    genomic_ranges = []
+
+    if gene_id_input:
+        
+        gene_ids = [gene_id.strip() for gene_id in gene_id_input.split() if gene_id.strip().isdigit()]
+        
+        # Ensure gene_ids are in correct format
+        for gene_id in gene_ids:
+            for char in gene_id:
+                if not char.isdigit():
+                    st.error(f'ERROR: {gene_id} is not a valid gene id')
+                    break
+
+        # Allow user to select a color for each gene ID
+        for index, gene_id in enumerate(gene_ids):
+            # Assign a unique key to each color picker using the gene ID and index
+            color = st.color_picker(f"Pick a color for Gene ID {gene_id}", '#ff0000', key=f"color_picker_{gene_id}_{index}")
+            gene_colors[int(gene_id)] = color
+
+        gene_metadata = fetch_gene_metadata(gene_ids)
+        genomic_ranges = display_gene_meta(gene_metadata, gene_ids)
+        if len(genomic_ranges) <= 0:
+            gene_id_input = False
+            st.warning(f"No valid genomic ranges found for Gene IDs: {', '.join(gene_ids)}")
+    
+    all_genes = st.checkbox('Display genes in gene expression file')
+
+    if gene_exp_file or gene_id_input:
+        # Check to see if there are string values in each of the columns provided
+        for val_1, val_2, val_3, val_4, val_5 in zip(full_data[gene_exp_gene_ids], full_data[gene_exp_avg_exp], full_data[gene_exp_pini_mock], \
+                                                     full_data[gene_exp_capsici_mock], full_data[gene_exp_pini_capsici]):
+            values = (val_1, val_2, val_3, val_4, val_5)
+
+        if all(isinstance(value, str) for value in values):
+
+            st.warning('At least one of the columns selected contains string values. The app can only read integers.')
+            return
+            
+        display_circos_plot(data, genomic_ranges, chrom_dict, gene_colors, full_data, all_genes, \
+                        gene_exp_gene_ids, gene_exp_avg_exp, gene_exp_pini_mock, gene_exp_capsici_mock, gene_exp_pini_capsici)
+                
+
+
+
 def fetch_gene_metadata(gene_ids):
+    # Fetch gene metadata for all gene IDs
     api_client = ApiClient()  # Properly initialize the API client
     gene_api = GeneApi(api_client)
     try:
-        # Fetch gene metadata for all gene IDs
         gene_metadata = gene_api.gene_metadata_by_id([int(gene_id) for gene_id in gene_ids])
         return gene_metadata
     except ApiException as e:
         st.error(f"An error occurred while fetching gene metadata: {e}")
         return None
 
-# Function to format and display the full API response as a useful table
+
 def display_formatted_response(response):
+    # Function to format and display the full API response as a useful table
     if response and 'genes' in response:
         gene_info_list = []
 
@@ -105,19 +159,8 @@ def display_formatted_response(response):
     else:
         st.warning("No gene information available in the API response.")
 
-# Streamlit app
-st.title('Custom Circos Plot Generator with Gene Metadata Integration')
 
-# Read walnut gene metadata file straight from GitHub
-url = 'https://raw.githubusercontent.com/nitink23/WGKB/main/ncbi_dataset.tsv'
-walnut_gene_meta = pd.read_csv(url, delimiter='\t')
-
-# Allow user to upload optional gene expression file
-gene_exp_file = st.file_uploader('Upload a gene expression file (optional, must be .csv, .xls or .xlsx)', type=["csv", "xls", "xlsx"])
-
-# Read gene expression columns based on file type
-if gene_exp_file:
-    
+def read_gene_exp_file(gene_exp_file):
     if str(gene_exp_file).endswith('.csv'):
         gene_exp_df = pd.read_csv(gene_exp_file)
         csv = True
@@ -139,262 +182,196 @@ if gene_exp_file:
     else:
         gene_exp_df = pd.read_excel(gene_exp_file, header = header)
     
-    gene_exp_cols = gene_exp_df.columns
-
     # Allow user to specify which columns denote which values
-    gene_exp_gene_ids = st.selectbox("Select which column has the GeneIDs", gene_exp_cols)
-    gene_exp_avg_exp = st.selectbox("Select which column has the average expression level", gene_exp_cols)
-    gene_exp_pini_mock = st.selectbox("Select which column has the log2FC CR10 pini / mock", gene_exp_cols)
-    gene_exp_capsici_mock = st.selectbox("Select which column has the log2FC CR10 capsici / mock", gene_exp_cols)
-    gene_exp_pini_capsici = st.selectbox("Select which column has the log2FC CR10 pini / capsici", gene_exp_cols)
+    gene_exp_gene_ids = st.selectbox("Select which column has the GeneIDs", gene_exp_df.columns)
+    gene_exp_avg_exp = st.selectbox("Select which column has the average expression level", gene_exp_df.columns)
+    gene_exp_pini_mock = st.selectbox("Select which column has the log2FC CR10 pini / mock", gene_exp_df.columns)
+    gene_exp_capsici_mock = st.selectbox("Select which column has the log2FC CR10 capsici / mock", gene_exp_df.columns)
+    gene_exp_pini_capsici = st.selectbox("Select which column has the log2FC CR10 pini / capsici", gene_exp_df.columns)
     
     # Rename col to 'Gene ID' and create merged dataframe
     gene_exp_df = gene_exp_df.rename(columns={gene_exp_gene_ids: 'Gene ID'})
     gene_exp_gene_ids = 'Gene ID'
-    full_data = pd.merge(gene_exp_df, walnut_gene_meta, on='Gene ID', how='inner')
+
+    return gene_exp_df, gene_exp_gene_ids, gene_exp_avg_exp, gene_exp_pini_mock, gene_exp_capsici_mock, gene_exp_pini_capsici
+    
 
 def get_colormap(data_col):
     # input: column to plot that needs colors
     # output: colormap
     vectorized_color_col = np.array(data_col).reshape(-1, 1)
 
+    # Default to see if column is empty
     if vectorized_color_col.shape[0] == 0:
         return ['#ff0000'] * len(data_col)
     
-    mean = vectorized_color_col.mean()
-    sd = vectorized_color_col.std()
-
-    normalized_arr = (vectorized_color_col - mean) / sd
+    min_val = vectorized_color_col.min()
+    max_val = vectorized_color_col.max()
+    
+    normalized_arr = (vectorized_color_col - min_val) / (max_val - min_val)
 
     cmap = plt.get_cmap('coolwarm')
     colors = [cmap(value) for value in normalized_arr]
     return colors
 
-# User input for multiple gene IDs
-gene_id_input = st.text_input('Enter Gene IDs (space-separated)')
 
-if gene_id_input:
-    gene_ids = [gene_id.strip() for gene_id in gene_id_input.split() if gene_id.strip().isdigit()]
+def display_gene_meta(gene_metadata, gene_ids: list) -> list:
+    # Log the entire API response as a table
+    st.write("Full API Response:")
+    display_formatted_response(gene_metadata.to_dict())  # Convert to dict for tabular format
 
-    if gene_ids:
-        # Allow user to select a color for each gene ID
-        gene_colors = {}
-        for index, gene_id in enumerate(gene_ids):
-            # Assign a unique key to each color picker using the gene ID and index
-            color = st.color_picker(f"Pick a color for Gene ID {gene_id}", '#ff0000', key=f"color_picker_{gene_id}_{index}")
-            gene_colors[gene_id] = color
+    # Check if genes exist in the response
+    if hasattr(gene_metadata, 'genes') and len(gene_metadata.genes) > 0:
+        st.write(f"Fetched metadata for Gene IDs: {', '.join(gene_ids)}")
 
-        gene_metadata = fetch_gene_metadata(gene_ids)
+        # Parse the genomic ranges including orientation
+        genomic_ranges = []
+        for gene_data in gene_metadata.genes:
+            gene_info = gene_data.gene
 
-        if gene_metadata:
-            # Log the entire API response as a table
-            st.write("Full API Response:")
-            display_formatted_response(gene_metadata.to_dict())  # Convert to dict for tabular format
-
-            # Check if genes exist in the response
-            if hasattr(gene_metadata, 'genes') and len(gene_metadata.genes) > 0:
-                st.write(f"Fetched metadata for Gene IDs: {', '.join(gene_ids)}")
-
-                # Parse the genomic ranges including orientation
-                genomic_ranges = []
-                for gene_data in gene_metadata.genes:
-                    gene_info = gene_data.gene
-
-                    if 'genomic_ranges' in gene_info and gene_info['genomic_ranges']:
-                        for genomic_range in gene_info['genomic_ranges']:
-                            chrom = genomic_range['accession_version']
-                            for loc in genomic_range['range']:
-                                start = int(loc['begin'])
-                                end = int(loc['end'])
-                                orientation = loc.get('orientation', 'plus')  # Get 'orientation' from the correct location
-                                genomic_ranges.append((chrom, start, end, orientation, gene_info['gene_id']))
-                    else:
-                        st.warning(f"No genomic ranges available for gene {gene_info['gene_id']}")
-
-                if len(genomic_ranges) > 0:
-                    # Prepare Circos plot with sectors (using chromosome sizes)
-                    sectors = {str(row['Chromosome']): row['Size (bp)'] for index, row in data.iterrows()}
-                    circos = Circos(sectors, space=5)
-
-                    for sector_obj in circos.sectors:
-                        # Plot sector name
-                        sector_obj.text(f"{sector_obj.name}", r=110, size=15)
-
-                        # Add scatter plot points based on genomic ranges and orientation
-                        scatter_track = sector_obj.add_track((95, 100), r_pad_ratio=0.1)
-                        scatter_track.axis()
-
-                        for chrom, start, end, orientation, gene_id in genomic_ranges:
-                            # Check if the accession_version belongs to non-numbered chromosomes (e.g., plastid)
-                            if chrom in non_numbered_chromosome:
-                                chrom_name = non_numbered_chromosome[chrom]
-                            else:
-                                chrom_name = numbered_chromosomes.get(chrom, None)
-
-                            if chrom_name is None:
-                                st.warning(f"Chromosome {chrom} not found in mapping. Skipping.")
-                                continue  # Skip if chromosome is not found
-
-                            # Ensure the chromosome name matches the sector (e.g., 'Pltd', 'chr01')
-                            if chrom_name == sector_obj.name:
-                                x = start
-
-                                # Extract the orientation value
-                                if isinstance(orientation, V1Orientation):
-                                    orientation_value = orientation.value
-                                elif isinstance(orientation, str):
-                                    orientation_value = orientation.strip().lower()
-                                else:
-                                    st.warning(f"Unexpected type for orientation at start {start}. Skipping this entry.")
-                                    continue
-
-                                # Assign y value based on orientation
-                                y = 1 if orientation_value == 'plus' else 0 if orientation_value == 'minus' else None
-                                if y is not None:
-                                    # Use the color selected for the gene ID
-                                    scatter_track.scatter([x], [y], color=gene_colors[str(gene_id)], label=f'Gene Start: {start} (Orientation: {orientation_value})')
-                        
-                        # Add another scatter track for log2FC CR10 pini / mock values from gene expression
-                        scatter2_track = sector_obj.add_track((75, 90), r_pad_ratio=0.1)
-                        scatter2_track.axis()
-
-                        # Get colormap for 
-
-                        # Iterate through genomic ranges to match with gene expression data
-                        for chrom, start, _, _, gene_id in genomic_ranges:
-                            # Check if the accession_version belongs to non-numbered chromosomes (e.g., plastid)
-                            if chrom in non_numbered_chromosome:
-                                chrom_name = non_numbered_chromosome[chrom]
-                            else:
-                                chrom_name = numbered_chromosomes.get(chrom, None)
-                                
-                            if chrom_name is None:
-                                st.warning(f"Chromosome {chrom} not found in mapping. Skipping.")
-                                continue #Skip if chromosome is not found
-                            
-                            # Ensure the chromosome name matches the sector (e.g., 'Pltd', 'chr01')
-                            if chrom_name == sector_obj.name:
-                                x = start
-                                
-                                if gene_id in gene_exp_df[gene_exp_gene_ids].astype(str).values:
-                                    # Get the log2FC value from the user's gene expression file
-                                    log2fc_PM = gene_exp_df[gene_exp_df[gene_exp_gene_ids] == int(gene_id)][gene_exp_pini_mock].values[0]
-
-                                    # Calculate vmin and vmax from the range of log2FC values in the expression file
-                                    vmin_PM = gene_exp_df[gene_exp_pini_mock].min()  # Min log2FC value
-                                    vmax_PM = gene_exp_df[gene_exp_pini_mock].max()  # Max log2FC value
-
-                                    st.write(f"Plotting scatter for {gene_id} on {chrom_name} with log2FC CR10 pini / mock: {log2fc_PM} at position {x}")
-
-                                    # Plot bar based on genomic start position (x) and log2FC (y)
-                                    scatter2_track.scatter([x], [log2fc_PM], color=gene_colors.get(str(gene_id)),vmin=vmin_PM, vmax=vmax_PM)
-                                else:
-                                    # Display a warning message if the gene ID is not found in the uploaded file
-                                    st.warning(f"No metadata available for Gene ID {gene_id} in the uploaded file.")
-
-                        # Add another scatter track for log2FC CR10 capsici / mock
-                        scatter3_track = sector_obj.add_track((55, 70), r_pad_ratio=0.1)
-                        scatter3_track.axis()
-
-                        # Iterate through genomic ranges to match with gene expression data
-                        for chrom, start, _, _, gene_id in genomic_ranges:
-                            # Check if the accession_version belongs to non-numbred chromosomes (e.g., plastid)
-                            if chrom in non_numbered_chromosome:
-                                chrom_name = non_numbered_chromosome[chrom]
-                            else:
-                                chrom_name = numbered_chromosomes.get(chrom, None)
-
-                            if chrom_name is None:
-                                st.warning(f"Chromosome {chrom} not found in mapping. Skipping.")
-                                continue #Skip if chromosome is not found
-
-                            # Ensure the chromosome name matches the sector (e.g., 'Pltd', 'chr01')
-                            if chrom_name == sector_obj.name:
-                                x = start
-
-                                if gene_id in gene_exp_df[gene_exp_gene_ids].astype(str).values:
-                                    
-                                    log2fc_CM = gene_exp_df[gene_exp_df[gene_exp_gene_ids] == int(gene_id)][gene_exp_capsici_mock].values[0]
-
-                                    vmin_CM = gene_exp_df[gene_exp_capsici_mock].min()
-                                    vmax_CM = gene_exp_df[gene_exp_capsici_mock].max()
-
-                                    st.write(f"Plotting scatter for {gene_id} on {chrom_name} with log2FC CR10 capsici / mock: {log2fc_CM} at position {x}")
-
-                                    scatter3_track.scatter([x], [log2fc_CM], color=gene_colors.get(str(gene_id)),vmin=vmin_CM, vmax=vmax_CM)
-
-                        # Add another scatter track for log2FC CR10 pini / capsici 
-                        scatter4_track = sector_obj.add_track((35, 50), r_pad_ratio=0.1)
-                        scatter4_track.axis()
-
-                        # Iterate through genomic ranges to match with gene expression data
-                        for chrom, start, _, _, gene_id in genomic_ranges:
-                            # Check if the accession_version belongs to non-numbred chromosomes (e.g., plastid)
-                            if chrom in non_numbered_chromosome:
-                                chrom_name = non_numbered_chromosome[chrom]
-                            else:
-                                chrom_name = numbered_chromosomes.get(chrom, None)
-
-                            if chrom_name is None:
-                                st.warning(f"Chromosome {chrom} not found in mapping. Skipping.")
-                                continue #Skip if chromosome is not found
-
-                            # Ensure the chromosome name matches the sector (e.g., 'Pltd', 'chr01')
-                            if chrom_name == sector_obj.name:
-                                x = start
-
-                                if gene_id in gene_exp_df[gene_exp_gene_ids].astype(str).values:
-                                    
-                                    log2fc_PC = gene_exp_df[gene_exp_df[gene_exp_gene_ids] == int(gene_id)][gene_exp_pini_capsici].values[0]
-
-                                    vmin_PC = gene_exp_df[gene_exp_pini_capsici].min()
-                                    vmax_PC = gene_exp_df[gene_exp_pini_capsici].max()
-
-                                    st.write(f"Plotting scatter for {gene_id} on {chrom_name} with log2FC CR10 pini / capsici: {log2fc_PC} at position {x}")
-
-                                    scatter4_track.scatter([x], [log2fc_PC], color=gene_colors.get(str(gene_id)),vmin=vmin_PC, vmax=vmax_PC)
-
-                        # Add bar track for Expression level
-                        bar_track = sector_obj.add_track((10, 30), r_pad_ratio=0.1)
-                        bar_track.axis()
-
-                        # Iterate through genomic ranges to match with gene expression data
-                        for chrom, start, _, _, gene_id in genomic_ranges:
-                            # Check if the accession_version belongs to non-numbred chromosomes (e.g., plastid)
-                            if chrom in non_numbered_chromosome:
-                                chrom_name = non_numbered_chromosome[chrom]
-                            else:
-                                chrom_name = numbered_chromosomes.get(chrom, None)
-
-                            if chrom_name is None:
-                                st.warning(f"Chromosome {chrom} not found in mapping. Skipping.")
-                                continue #Skip if chromosome is not found
-
-                            # Ensure the chromosome name matches the sector (e.g., 'Pltd', 'chr01')
-                            if chrom_name == sector_obj.name:
-                                x = start
-
-                                if gene_id in gene_exp_df[gene_exp_gene_ids].astype(str).values:
-                                    
-                                    AvExpLv = gene_exp_df[gene_exp_df[gene_exp_gene_ids] == int(gene_id)][gene_exp_avg_exp].values[0]
-                                    
-                                    vmax_AEL = gene_exp_df[gene_exp_avg_exp].max()
-
-                                    st.write(f"Plotting bar for {gene_id} on {chrom_name} with Average Expression Level: {AvExpLv} at position {x}")
-
-                                    bar_track.bar([x], [AvExpLv], ec=gene_colors[str(gene_id)], lw=0.9, vmin=0, vmax=vmax_AEL)
-
-                    # Render the plot using Matplotlib
-                    fig = circos.plotfig()
-
-                    # Display the plot in Streamlit
-                    st.pyplot(fig)
-                else:
-                    st.warning(f"No valid genomic ranges found for Gene IDs: {', '.join(gene_ids)}")
+            if 'genomic_ranges' in gene_info and gene_info['genomic_ranges']:
+                for genomic_range in gene_info['genomic_ranges']:
+                    chrom = genomic_range['accession_version']
+                    for loc in genomic_range['range']:
+                        start = int(loc['begin'])
+                        end = int(loc['end'])
+                        orientation = loc.get('orientation', 'plus')  # Get 'orientation' from the correct location
+                        genomic_ranges.append((chrom, start, end, orientation, gene_info['gene_id']))
+                return genomic_ranges
             else:
-                st.warning(f"No genes found for Gene IDs: {', '.join(gene_ids)}")
+                st.warning(f"No genomic ranges available for gene {gene_info['gene_id']}")
     else:
-        st.error("Please enter valid numeric Gene IDs")
-else:
-    st.error("Please enter Gene IDs")
+        st.warning(f'No gene ID metadata found for {gene_ids}')
 
+
+def add_point(chrom: str, chrom_dict: dict, sector_obj, orientation, scatter_track, scatter2_track, scatter3_track, scatter4_track, \
+              bar_track, x: int, gene_colors, gene_id: int, full_data, gene_exp_gene_ids: str, gene_exp_pini_mock: str, \
+              gene_exp_capsici_mock: str, gene_exp_pini_capsici: str, gene_exp_avg_exp: str, color_1, color_2, color_3, bar_color):
+    
+    if chrom in chrom_dict:
+        chrom_name = chrom_dict[chrom]
+    else:
+        st.warning(f"Chromosome {chrom} not found in mapping. Skipping.")
+        return  # Skip if chromosome is not found
+
+    # Ensure the chromosome name matches the sector (e.g., 'Pltd', 'chr01')
+    if chrom_name == sector_obj.name:
+
+        # Extract the orientation value
+        if isinstance(orientation, V1Orientation):
+            orientation_value = orientation.value
+        elif isinstance(orientation, str):
+            orientation_value = orientation.strip().lower()
+        else:
+            st.warning(f"Unexpected type for orientation at start {x}. Skipping this entry.")
+            return  
+            
+        # Assign y value based on orientation
+        y = 1 if orientation_value == 'plus' else 0
+            
+        if str(gene_id) in full_data[gene_exp_gene_ids].astype(str).values:
+            # Get the log2FC values from the user's gene expression file
+            log2fc_PM = full_data[full_data[gene_exp_gene_ids] == int(gene_id)][gene_exp_pini_mock].values[0]
+            log2fc_CM = full_data[full_data[gene_exp_gene_ids] == int(gene_id)][gene_exp_capsici_mock].values[0]
+            log2fc_PC = full_data[full_data[gene_exp_gene_ids] == int(gene_id)][gene_exp_pini_capsici].values[0]
+            avg_exp_lvl = full_data[full_data[gene_exp_gene_ids] == int(gene_id)][gene_exp_avg_exp].values[0]
+
+            # Calculate vmin and vmax from the range of log2FC values in the expression file
+            vmin_PM = full_data[gene_exp_pini_mock].min()
+            vmax_PM = full_data[gene_exp_pini_mock].max()
+                        
+            vmin_CM = full_data[gene_exp_capsici_mock].min()
+            vmax_CM = full_data[gene_exp_capsici_mock].max()
+
+            vmin_PC = full_data[gene_exp_pini_capsici].min()
+            vmax_PC = full_data[gene_exp_pini_capsici].max()
+
+            vmax_ael = full_data[gene_exp_avg_exp].max()
+
+            # Plot with correct color
+            if color_1 is not None or color_2 is not None or color_3 is not None:
+                scatter2_track.scatter([x], [log2fc_PM], color=color_1, vmin=vmin_PM, vmax=vmax_PM)
+                scatter3_track.scatter([x], [log2fc_CM], color=color_2, vmin=vmin_CM, vmax=vmax_CM)
+                scatter4_track.scatter([x], [log2fc_PC], color=color_3, vmin=vmin_PC, vmax=vmax_PC)
+                bar_track.bar([x], [avg_exp_lvl], ec=bar_color, lw=0.9, vmin=0, vmax=vmax_ael)
+            else:
+                scatter_track.scatter([x], [y], color=gene_colors[gene_id], s=70)
+                scatter2_track.scatter([x], [log2fc_PM], color=gene_colors[gene_id], vmin=vmin_PM, vmax=vmax_PM, s=70)
+                scatter3_track.scatter([x], [log2fc_CM], color=gene_colors[gene_id], vmin=vmin_CM, vmax=vmax_CM, s=70)
+                scatter4_track.scatter([x], [log2fc_PC], color=gene_colors[gene_id], vmin=vmin_PC, vmax=vmax_PC, s=70)
+                bar_track.bar([x], [avg_exp_lvl], ec=gene_colors[gene_id], lw=0.9, vmin=0, vmax=vmax_ael)
+        
+        else:
+            # Display a warning message if the gene ID is not found in the uploaded file
+            st.warning(f"No metadata available for Gene ID {gene_id} in the uploaded file.")
+
+
+def display_circos_plot(data: dict, genomic_ranges: list, chrom_dict: dict, gene_colors: dict, full_data, all_genes, \
+                        gene_exp_gene_ids, gene_exp_avg_exp, gene_exp_pini_mock, gene_exp_capsici_mock, gene_exp_pini_capsici) -> None:
+    # Prepare Circos plot with sectors (using chromosome sizes)
+    sectors = {str(row[1]['Chromosome']): row[1]['Size (bp)'] for row in data.iterrows()}
+    circos = Circos(sectors, space=5)
+
+    colors_1 = get_colormap(full_data[gene_exp_pini_mock])
+    colors_2 = get_colormap(full_data[gene_exp_capsici_mock])
+    colors_3 = get_colormap(full_data[gene_exp_pini_capsici])
+
+    bar_color = st.color_picker(f"Pick a color for bar plot on track 5", '#ff0000', key=f"color_picker")
+
+    for index, sector_obj in enumerate(circos.sectors):
+        # Plot sector name
+        sector_obj.text(f"{sector_obj.name}", r=110, size=15)
+
+        # Add scatter plot points based on genomic ranges and orientation
+        scatter_track = sector_obj.add_track((95, 100), r_pad_ratio=0.1)
+        scatter_track.axis()
+
+        # Scatter track for log2FC CR10 pini / mock values from gene expression
+        scatter2_track = sector_obj.add_track((75, 90), r_pad_ratio=0.1)
+        scatter2_track.axis()
+
+        # Scatter track for log2FC CR10 capsici / mock
+        scatter3_track = sector_obj.add_track((55, 70), r_pad_ratio=0.1)
+        scatter3_track.axis()
+
+        # Scatter track for log2FC CR10 pini / capsici 
+        scatter4_track = sector_obj.add_track((35, 50), r_pad_ratio=0.1)
+        scatter4_track.axis()
+
+        # Add bar track for Expression level
+        bar_track = sector_obj.add_track((10, 30), r_pad_ratio=0.1)
+        bar_track.axis()
+
+        if all_genes:
+            chr_data = full_data[full_data['Chromosome'] == str(index+1)].reset_index(drop=True)
+
+            for row_num, row in chr_data.iterrows():
+                # scatter_track.scatter([row['Begin']], [y], color=colors[row_num])
+
+                x = row['Begin']
+                color_1 = colors_1[row_num]
+                color_2 = colors_2[row_num]
+                color_3 = colors_3[row_num]
+                chrom = chr_data['Accession'][row_num]
+                orientation = chr_data['Orientation'][row_num]
+                gene_id = int(chr_data['Gene ID'][row_num])
+
+                add_point(chrom, chrom_dict, sector_obj, orientation, scatter_track, scatter2_track, scatter3_track, scatter4_track, \
+                          bar_track, x, gene_colors, gene_id, full_data, gene_exp_gene_ids, gene_exp_pini_mock, \
+                          gene_exp_capsici_mock, gene_exp_pini_capsici, gene_exp_avg_exp, color_1, color_2, color_3, bar_color)
+
+        if genomic_ranges:
+            color_1, color_2, color_3 = None, None, None
+            for chrom, x, _, orientation, gene_id in genomic_ranges:
+                add_point(chrom, chrom_dict, sector_obj, orientation, scatter_track, scatter2_track, scatter3_track, scatter4_track, \
+                          bar_track, x, gene_colors, int(gene_id), full_data, gene_exp_gene_ids, gene_exp_pini_mock, \
+                          gene_exp_capsici_mock, gene_exp_pini_capsici, gene_exp_avg_exp, color_1, color_2, color_3, bar_color)
+
+    # Render the plot using Matplotlib
+    fig = circos.plotfig()
+
+    # Display the plot in Streamlit
+    st.pyplot(fig)
+
+
+main()
