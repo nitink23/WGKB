@@ -364,6 +364,23 @@ def display_circos_plot(data: dict, genomic_ranges: list, chrom_dict: dict, gene
         # Add bar track for Expression level
         bar_track = sector_obj.add_track((10, 30), r_pad_ratio=0.1)
         bar_track.axis()
+
+        # Add y-ticks only on the left side of the chr01 sector
+        if sector_obj.name == 'chr01':  
+
+            scatter_track.yticks([0, 1], list("-+"), vmin=0, vmax=1, side="left")
+
+            scatter2_track.yticks(y=np.linspace(full_data[gene_exp_pini_mock].min(), full_data[gene_exp_pini_mock].max(), num=5), \
+                                  labels=[f"{round(tick)}" for tick in np.linspace(full_data[gene_exp_pini_mock].min(), full_data[gene_exp_pini_mock].max(), num=5)], \
+                                    vmin=full_data[gene_exp_pini_mock].min(), vmax=full_data[gene_exp_pini_mock].max(), side="left" )
+            
+            scatter3_track.yticks(y=np.linspace(full_data[gene_exp_capsici_mock].min(), full_data[gene_exp_capsici_mock].max(), num=5), \
+                                  labels=[f"{round(tick)}" for tick in np.linspace(full_data[gene_exp_capsici_mock].min(), full_data[gene_exp_capsici_mock].max(), num=5)], \
+                                     vmin=full_data[gene_exp_capsici_mock].min(), vmax=full_data[gene_exp_capsici_mock].max(), side="left" )
+            
+            scatter4_track.yticks(y=np.linsp ace(full_data[gene_exp_pini_capsici].min(), full_data[gene_exp_pini_capsici].max(), num=5), \
+                                  labels=[f"{round(tick)}" for tick in np.linspace(full_data[gene_exp_pini_capsici].min(), full_data[gene_exp_pini_capsici].max(), num=5)], \
+                                     vmin=full_data[gene_exp_pini_capsici].min(), vmax=full_data[gene_exp_pini_capsici].max(), side="left")
         
         inputted_point = False
 
