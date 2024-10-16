@@ -378,7 +378,7 @@ def display_circos_plot(data: dict, genomic_ranges: list, chrom_dict: dict, gene
                                   labels=[f"{round(tick)}" for tick in np.linspace(full_data[gene_exp_capsici_mock].min(), full_data[gene_exp_capsici_mock].max(), num=5)], \
                                      vmin=full_data[gene_exp_capsici_mock].min(), vmax=full_data[gene_exp_capsici_mock].max(), side="left" )
             
-            scatter4_track.yticks(y=np.linsp ace(full_data[gene_exp_pini_capsici].min(), full_data[gene_exp_pini_capsici].max(), num=5), \
+            scatter4_track.yticks(y=np.linspace(full_data[gene_exp_pini_capsici].min(), full_data[gene_exp_pini_capsici].max(), num=5), \
                                   labels=[f"{round(tick)}" for tick in np.linspace(full_data[gene_exp_pini_capsici].min(), full_data[gene_exp_pini_capsici].max(), num=5)], \
                                      vmin=full_data[gene_exp_pini_capsici].min(), vmax=full_data[gene_exp_pini_capsici].max(), side="left")
         
