@@ -75,9 +75,16 @@ def main() -> None:
         # Allow user to specify how many tracks they want to visualize
         available_tracks = [1, 2, 3, 4, 5] if full_data is not None else [1]
         num_tracks = st.selectbox("How many tracks would you like to visualize? (Upload gene expression file to view more than 1 track)", available_tracks)
+        bar_correction = 0
+        bar = False
+
+        if full_data is not None and num_tracks > 1:
+            bar = st.checkbox(f"Would you like to include a bar plot? (Can only be visualized on bottom track)")
+            bar_correction = 1 if bar else 0
         
         # For each track, allow user to specify what data goes on which track
         track_cols = {}
+        bar_color = None
 
         # Add 'Gene Location' column if user entered Gene IDs
         available_cols = list(full_data_cols)
@@ -85,26 +92,29 @@ def main() -> None:
             available_cols = ['Gene Location'] + available_cols
 
         # Allow user to select which data they want in which tracks
-        for track in range(num_tracks):
+        for track in range(num_tracks-bar_correction):
 
             desired_col = st.selectbox(f"Select which data you would like to visualize in track {track+1}:", available_cols)
 
             if desired_col == 'Gene Location':
                 desired_data = genomic_ranges
-                bar = None
             else:
                 desired_data = full_data[desired_col]
 
-                # Check to see if there are string values in each of the columns provided
-                if full_data[desired_col].apply(lambda x: isinstance(x, str)).all():
-                    st.error(f'The \'{desired_col}\' column contains string values and thus cannot be visualized on the Circos plot. The app can only read integers.')
+                if invalid_col(full_data, desired_col):
                     return
-                
-                bar = st.checkbox(f"Would you like track {track+1} to be a bar plot?")
-            
-            bar_color = st.color_picker(f"Pick a color for bar plot on track {track+1}", '#ff0000', key=f"color_picker_bar_track") if bar else None
-            plot_type = 'bar' if bar else 'dot'
-            track_cols[desired_col] = [plot_type, desired_data]
+
+            track_cols[desired_col] = ['dot', desired_data]
+        
+        # Check to see if the user wants to add a bar track
+        if bar:
+            desired_col = st.selectbox(f"Select which data you would like to visualize in bar track:", available_cols)
+            bar_color = st.color_picker(f"Pick a color for bar plot", '#ff0000', key=f"color_picker_bar_track")
+            if invalid_col(full_data, desired_col):
+                return
+            if desired_col != 'Gene Location':
+                desired_data = full_data[desired_col]
+                track_cols[desired_col] = ['bar', desired_data]
 
         try:
             if st.button('Click to plot!'):
@@ -125,6 +135,15 @@ def fetch_gene_metadata(gene_ids):
     except ApiException as e:
         st.error(f"An error occurred while fetching gene metadata: {e}")
         return None
+
+
+def invalid_col(full_data, desired_col) -> bool:
+    # Checks for string values in given column
+    if desired_col != 'Gene Location':
+        if full_data[desired_col].apply(lambda x: isinstance(x, str)).all():
+            st.error(f'The \'{desired_col}\' column contains string values and thus cannot be visualized on the Circos plot. The app can only read integers.')
+            return True
+    return False
 
 
 def display_formatted_response(response):
@@ -283,9 +302,9 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> N
         if key == 'Gene Location':
             width = 5
         elif val[0] == 'bar':
-            width = 15
+            width = 75/len(track_cols)
         else:
-            width = 10
+            width = 50/len(track_cols)
         lower = upper - width
 
         for chrom_num, sector_obj in enumerate(circos.sectors):
@@ -333,8 +352,21 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> N
                         y = 1 if orientation.value == 'plus' else 0
                         track.scatter([x], [y], color=color_to_use, s=70)
 
-    # Enlarge plot
-    fig = plt.figure(figsize=(14, 14))
+    # Add colorbar for expression level columns
+    exp_cols = [col for col, val in track_cols.items() if col != 'Gene Location' and val[0] == 'dot']
+    for index, col in enumerate(exp_cols):
+        circos.colorbar(
+            bounds=(1-0.25*index, 1.1, 0.02, 0.3),
+            vmin=full_data[col].max(),
+            vmax=full_data[col].max(),
+            cmap="coolwarm",
+            orientation="vertical",
+            label=col,
+            label_kws=dict(size=10, color="black"),
+            tick_kws=dict(labelsize=8, colors="black")
+        )
+
+    plt.tight_layout()
 
     # Render the plot using Matplotlib
     fig = circos.plotfig()
