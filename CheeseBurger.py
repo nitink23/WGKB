@@ -323,7 +323,7 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> N
                 else:
                     track.yticks(y=np.linspace(val[1].min(), val[1].max(), num=5), \
                                  labels=[f"{round(tick)}" for tick in np.linspace(val[1].min(), val[1].max(), num=5)], \
-                                 vmin=val[1].min(), vmax=val[1].max(), side="left" )
+                                 vmin=val[1].min(), vmax=val[1].max(), side="left", label_size=4)
         
             # If given track is not Gene Location
             if key != 'Gene Location':
@@ -340,7 +340,7 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> N
 
                         if val[0] == 'dot':
                             color_to_use = colors[row_num]
-                            track.scatter([row['Begin']], [row[key]], color=color_to_use, vmin=val[1].min(), vmax=val[1].max(), s=25)
+                            track.scatter([row['Begin']], [row[key]], color=color_to_use, vmin=val[1].min(), vmax=val[1].max(), s=5)
 
                         else:
                             track.bar([row['Begin']], [row[key]], ec=bar_color, lw=0.9, vmin=0, vmax=val[1].max())
@@ -350,7 +350,7 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> N
                 for chrom, x, _, orientation, _, color_to_use in val[1]:
                     if chrom == sector_obj.name:
                         y = 1 if orientation.value == 'plus' else 0
-                        track.scatter([x], [y], color=color_to_use, s=70)
+                        track.scatter([x], [y], color=color_to_use, s=20)
 
     # Add colorbar for expression level columns
     exp_cols = [col for col, val in track_cols.items() if col != 'Gene Location' and val[0] == 'dot']
