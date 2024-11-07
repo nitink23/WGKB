@@ -314,8 +314,9 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> N
             width = 50/len(track_cols)
         lower = upper - width
 
-        # Get the colors for given column
-        full_data['color_' + str(index)] = get_colormap(val[1])
+        # Get the colors for given column if it is not Gene Location
+        if key != 'Gene Location':
+            full_data['color_' + str(index)] = get_colormap(val[1])
 
         for chrom_num, sector_obj in enumerate(circos.sectors):
             
@@ -351,7 +352,7 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> N
 
                         # Ensure the column has values in it
                         if not pd.isna(chr_data[key].max()):
-                            track.bar(chr_data['Begin'].tolist(), chr_data[key].tolist(), ec=bar_color, lw=0.9, vmin=0, vmax=chr_data[key].max())
+                            track.bar(chr_data['Begin'].tolist(), chr_data[key].tolist(), ec=bar_color, lw=0.9, vmin=0, vmax=full_data[key].max())
 
             # If user manually included gene IDs
             else:
