@@ -330,25 +330,28 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> N
             if get_chrom_num(sector_obj.name) == 'chr01':  
                 if key == 'Gene Location':
                     track.yticks([0, 1], list("-+"), vmin=0, vmax=1, side="left")
-                else:
+                elif val[0] != 'bar':
                     track.yticks(y=np.linspace(val[1].min(), val[1].max(), num=5), \
                                  labels=[f"{round(tick)}" for tick in np.linspace(val[1].min(), val[1].max(), num=5)], \
-                                 vmin=val[1].min(), vmax=val[1].max(), side="left", label_size=4)
+                                 vmin=val[1].min(), vmax=val[1].max(), side="left", label_size=7-index)
         
             # If given track is not Gene Location
             if key != 'Gene Location':
+
+                # Get subset from full_data of all the rows with a specific chromosome
+                chr_data = full_data[full_data['Chromosome'] == str(chrom_num+1)].reset_index(drop=True)
                 
                 if full_data is not None:
 
                     if val[0] == 'dot':
 
-                        # Get subset from full_data of all the rows with a specific chromosome
-                        chr_data = full_data[full_data['Chromosome'] == str(chrom_num+1)].reset_index(drop=True)
-
                         track.scatter(chr_data['Begin'].tolist(), chr_data[key].tolist(), color=chr_data['color_' + str(index)], cmap='coolwarm', vmin=val[1].min(), vmax=val[1].max(), s=5)
 
                     else:
-                        track.bar(chr_data['Begin'].tolist(), chr_data[key].tolist(), ec=bar_color, lw=0.9, vmin=0, vmax=val[1].max())
+
+                        # Ensure the column has values in it
+                        if not pd.isna(chr_data[key].max()):
+                            track.bar(chr_data['Begin'].tolist(), chr_data[key].tolist(), ec=bar_color, lw=0.9, vmin=0, vmax=chr_data[key].max())
 
             # If user manually included gene IDs
             else:
@@ -358,18 +361,38 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> N
                         track.scatter([x], [y], color=color_to_use, s=20)
 
     # Add colorbar for expression level columns
-    exp_cols = [col for col, val in track_cols.items() if col != 'Gene Location' and val[0] == 'dot']
-    for index, col in enumerate(exp_cols):
-        circos.colorbar(
-            bounds=(1-0.25*index, 1.1, 0.02, 0.3),
-            vmin=full_data[col].min(),
-            vmax=full_data[col].max(),
-            cmap="coolwarm",
-            orientation="vertical",
-            label=col,
-            label_kws=dict(size=10, color="black"),
-            tick_kws=dict(labelsize=8, colors="black")
-        )
+    exp_cols = [[col, val[0]] for col, val in track_cols.items() if col != 'Gene Location']
+
+    for index, (col, val) in enumerate(exp_cols):
+
+        if val == 'bar':
+
+            label = col
+            # Shorten title if we are examining Expression level
+            if col == 'Expression level (average normalized FPKM of all 36 samples)':
+                label = 'Average normalized FPKM expression'
+
+            circos.colorbar(
+                bounds=(1, 1+index*0.1, 0.25, 0),
+                vmin=full_data[col].min(),
+                vmax=full_data[col].max(),
+                orientation="horizontal",
+                label=label,
+                label_kws=dict(size=10, color="black"),
+                tick_kws=dict(labelsize=8, colors="black")
+            )
+
+        else:
+            circos.colorbar(
+                bounds=(1, 1+index*0.1, 0.25, 0.02),
+                vmin=full_data[col].min(),
+                vmax=full_data[col].max(),
+                cmap="coolwarm",
+                orientation="horizontal",
+                label=col,
+                label_kws=dict(size=10, color="black"),
+                tick_kws=dict(labelsize=8, colors="black")
+            )
 
     plt.tight_layout()
 
