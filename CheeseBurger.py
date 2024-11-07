@@ -215,21 +215,28 @@ def read_gene_exp_file(gene_exp_file):
     
 
 def get_colormap(data_col):
-    # input: column to plot that needs colors
-    # output: colormap
-    vectorized_color_col = np.array(data_col).reshape(-1, 1)
+    # Convert data_col to a numpy array
+    vectorized_color_col = np.array(data_col)
 
-    # Default to see if column is empty
-    if vectorized_color_col.shape[0] == 0:
+    # Handle case where data_col is empty or has NaNs
+    if vectorized_color_col.size == 0 or np.isnan(vectorized_color_col).all():
         return ['#ff0000'] * len(data_col)
     
-    min_val = vectorized_color_col.min()
-    max_val = vectorized_color_col.max()
+    # Filter out NaNs for normalization
+    finite_data = vectorized_color_col[np.isfinite(vectorized_color_col)]
+    min_val = finite_data.min() if finite_data.size > 0 else 0
+    max_val = finite_data.max() if finite_data.size > 0 else 1
     
-    normalized_arr = (vectorized_color_col - min_val) / (max_val - min_val)
+    # Normalize the array, ensuring the range is 0-1
+    if min_val == max_val:
+        normalized_arr = np.zeros_like(vectorized_color_col)  # Set all to 0 if min and max are equal
+    else:
+        normalized_arr = (vectorized_color_col - min_val) / (max_val - min_val)
 
+    # Apply colormap
     cmap = plt.get_cmap('coolwarm')
-    colors = [cmap(value) for value in normalized_arr]
+    colors = [cmap(value) if np.isfinite(value) else (0.5, 0.5, 0.5, 1) for value in normalized_arr]
+
     return colors
 
 
@@ -293,11 +300,11 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> N
     sectors = {str(row[1]['Chromosome']): row[1]['Size (bp)'] for row in data.iterrows()}
     circos = Circos(sectors, space=5)
 
-    colors = None
     lower = 105
 
     # Format: track_cols[desired_col] = [plot_type, desired_data]
     for index, (key, val) in enumerate(track_cols.items()):
+
         upper = lower - 5
         if key == 'Gene Location':
             width = 5
@@ -306,6 +313,9 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> N
         else:
             width = 50/len(track_cols)
         lower = upper - width
+
+        # Get the colors for given column
+        full_data['color_' + str(index)] = get_colormap(val[1])
 
         for chrom_num, sector_obj in enumerate(circos.sectors):
             
@@ -329,21 +339,16 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> N
             if key != 'Gene Location':
                 
                 if full_data is not None:
-                    # Get the colors for given column
-                    colors = get_colormap(val[1])
 
-                    # Get subset from full_data of all the rows with a specific chromosome
-                    chr_data = full_data[full_data['Chromosome'] == str(chrom_num+1)].reset_index(drop=True)
+                    if val[0] == 'dot':
 
-                    # For each row in the chromosome subset, example: all chromosome 15 rows
-                    for row_num, row in chr_data.iterrows():
+                        # Get subset from full_data of all the rows with a specific chromosome
+                        chr_data = full_data[full_data['Chromosome'] == str(chrom_num+1)].reset_index(drop=True)
 
-                        if val[0] == 'dot':
-                            color_to_use = colors[row_num]
-                            track.scatter([row['Begin']], [row[key]], color=color_to_use, vmin=val[1].min(), vmax=val[1].max(), s=5)
+                        track.scatter(chr_data['Begin'].tolist(), chr_data[key].tolist(), color=chr_data['color_' + str(index)], cmap='coolwarm', vmin=val[1].min(), vmax=val[1].max(), s=5)
 
-                        else:
-                            track.bar([row['Begin']], [row[key]], ec=bar_color, lw=0.9, vmin=0, vmax=val[1].max())
+                    else:
+                        track.bar(chr_data['Begin'].tolist(), chr_data[key].tolist(), ec=bar_color, lw=0.9, vmin=0, vmax=val[1].max())
 
             # If user manually included gene IDs
             else:
@@ -357,7 +362,7 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> N
     for index, col in enumerate(exp_cols):
         circos.colorbar(
             bounds=(1-0.25*index, 1.1, 0.02, 0.3),
-            vmin=full_data[col].max(),
+            vmin=full_data[col].min(),
             vmax=full_data[col].max(),
             cmap="coolwarm",
             orientation="vertical",
