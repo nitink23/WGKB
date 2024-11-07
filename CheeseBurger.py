@@ -75,12 +75,14 @@ def main() -> None:
         # Allow user to specify how many tracks they want to visualize
         available_tracks = [1, 2, 3, 4, 5] if full_data is not None else [1]
         num_tracks = st.selectbox("How many tracks would you like to visualize? (Upload gene expression file to view more than 1 track)", available_tracks)
-        bar_correction = 0
+        track_correction = 0
         bar = False
 
-        if full_data is not None and num_tracks > 1:
-            bar = st.checkbox(f"Would you like to include a bar plot? (Can only be visualized on bottom track)")
-            bar_correction = 1 if bar else 0
+        if full_data is not None and num_tracks >= 1:
+            bar = st.checkbox("Would you like one of these tracks to be a bar plot? (Can only be visualized on bottom track)")
+            line = st.checkbox("Would you like one of these tracks to be a line plot?")
+            track_correction +=1 if bar else 0
+            track_correction += 1 if line else 0
         
         # For each track, allow user to specify what data goes on which track
         track_cols = {}
@@ -92,7 +94,7 @@ def main() -> None:
             available_cols = ['Gene Location'] + available_cols
 
         # Allow user to select which data they want in which tracks
-        for track in range(num_tracks-bar_correction):
+        for track in range(num_tracks-track_correction):
 
             desired_col = st.selectbox(f"Select which data you would like to visualize in track {track+1}:", available_cols)
 
@@ -106,15 +108,22 @@ def main() -> None:
 
             track_cols[desired_col] = ['dot', desired_data]
         
-        # Check to see if the user wants to add a bar track
-        if bar:
-            desired_col = st.selectbox(f"Select which data you would like to visualize in bar track:", available_cols)
-            bar_color = st.color_picker(f"Pick a color for bar plot", '#ff0000', key=f"color_picker_bar_track")
-            if invalid_col(full_data, desired_col):
-                return
-            if desired_col != 'Gene Location':
-                desired_data = full_data[desired_col]
-                track_cols[desired_col] = ['bar', desired_data]
+        # Add data to track_cols dict when user wants line or bar track
+        for track_type in ['line' if line else None, 'bar' if bar else None]:
+
+            if track_type:
+
+                desired_col = st.selectbox(f"Select which data you would like to visualize in {track_type} track:", available_cols)
+
+                if track_type == 'bar':
+                    bar_color = st.color_picker(f"Pick a color for bar plot", '#ff0000', key=f"color_picker_bar_track")
+
+                if invalid_col(full_data, desired_col):
+                    return
+                
+                if desired_col != 'Gene Location':
+                    desired_data = full_data[desired_col]
+                    track_cols[desired_col] = [track_type, desired_data]
 
         try:
             if st.button('Click to plot!'):
@@ -141,7 +150,7 @@ def invalid_col(full_data, desired_col) -> bool:
     # Checks for string values in given column
     if desired_col != 'Gene Location':
         if full_data[desired_col].apply(lambda x: isinstance(x, str)).all():
-            st.error(f'The \'{desired_col}\' column contains string values and thus cannot be visualized on the Circos plot. The app can only read integers.')
+            st.error(f'The \'{desired_col}\' column contains string values and thus cannot be visualized on the Circos plot. The app can only read integers or floats.')
             return True
     return False
 
@@ -329,9 +338,12 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> N
 
             # Add y-ticks only on the left side of the chr01 sector
             if get_chrom_num(sector_obj.name) == 'chr01':  
+
                 if key == 'Gene Location':
                     track.yticks([0, 1], list("-+"), vmin=0, vmax=1, side="left")
-                elif val[0] != 'bar':
+
+                # Only add tick marks to tracks that are not bar or line    
+                elif val[0] not in ['bar', 'line']:
                     track.yticks(y=np.linspace(val[1].min(), val[1].max(), num=5), \
                                  labels=[f"{round(tick)}" for tick in np.linspace(val[1].min(), val[1].max(), num=5)], \
                                  vmin=val[1].min(), vmax=val[1].max(), side="left", label_size=7-index)
@@ -348,11 +360,22 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> N
 
                         track.scatter(chr_data['Begin'].tolist(), chr_data[key].tolist(), color=chr_data['color_' + str(index)], cmap='coolwarm', vmin=val[1].min(), vmax=val[1].max(), s=5)
 
-                    else:
+                    if not pd.isna(chr_data[key].max()):
 
-                        # Ensure the column has values in it
-                        if not pd.isna(chr_data[key].max()):
-                            track.bar(chr_data['Begin'].tolist(), chr_data[key].tolist(), ec=bar_color, lw=0.9, vmin=0, vmax=full_data[key].max())
+                        if val[0] == 'line':
+
+                            # Add a dotted line from col min to col max
+                            track.line([track.start, track.end], [full_data[key].min(), full_data[key].max()], vmin=full_data[key].min(), vmax=full_data[key].max(), lw=1.5, ls="dotted")
+
+                            # Add solid line connecting data points
+                            chr_data_sorted = chr_data.sort_values(by='Begin')
+                            track.line(chr_data_sorted['Begin'].tolist(), chr_data_sorted[key].tolist(), vmin=val[1].min(), vmax=full_data[key].max())
+
+                        elif val[0] == 'bar':
+
+                            # Ensure the column has values in it
+                            vmin = 0 if full_data[key].min() > 0 else full_data[key].min()
+                            track.bar(chr_data['Begin'].tolist(), chr_data[key].tolist(), ec=bar_color, lw=0.9, vmin=vmin, vmax=full_data[key].max())
 
             # If user manually included gene IDs
             else:
@@ -366,7 +389,7 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> N
 
     for index, (col, val) in enumerate(exp_cols):
 
-        if val == 'bar':
+        if val == 'bar' or val == 'line':
 
             label = col
             # Shorten title if we are examining Expression level
@@ -374,7 +397,7 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> N
                 label = 'Average normalized FPKM expression'
 
             circos.colorbar(
-                bounds=(1, 1+index*0.1, 0.25, 0),
+                bounds=(0.9, 1+index*0.1, 0.25, 0),
                 vmin=full_data[col].min(),
                 vmax=full_data[col].max(),
                 orientation="horizontal",
@@ -385,7 +408,7 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> N
 
         else:
             circos.colorbar(
-                bounds=(1, 1+index*0.1, 0.25, 0.02),
+                bounds=(0.9, 1+index*0.1, 0.25, 0.02),
                 vmin=full_data[col].min(),
                 vmax=full_data[col].max(),
                 cmap="coolwarm",
