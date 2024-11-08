@@ -85,7 +85,7 @@ def main() -> None:
             track_correction += 1 if line else 0
         
         # For each track, allow user to specify what data goes on which track
-        track_cols = {}
+        track_cols = []
         bar_color = None
 
         # Add 'Gene Location' column if user entered Gene IDs
@@ -106,7 +106,7 @@ def main() -> None:
                 if invalid_col(full_data, desired_col):
                     return
 
-            track_cols[desired_col] = ['dot', desired_data]
+            track_cols.append([desired_col, 'dot', desired_data])
         
         # Add data to track_cols dict when user wants line or bar track
         for track_type in ['line' if line else None, 'bar' if bar else None]:
@@ -123,7 +123,7 @@ def main() -> None:
                 
                 if desired_col != 'Gene Location':
                     desired_data = full_data[desired_col]
-                    track_cols[desired_col] = [track_type, desired_data]
+                    track_cols.append([desired_col, track_type, desired_data])
 
         try:
             if st.button('Click to plot!'):
@@ -303,7 +303,7 @@ def get_chrom_num(key: str) -> str:
         return None
 
 
-def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color, genomic_ranges) -> None:
+def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, genomic_ranges) -> None:
     
     # Prepare Circos plot with sectors (using chromosome sizes)
     sectors = {str(row[1]['Chromosome']): row[1]['Size (bp)'] for row in data.iterrows()}
@@ -311,21 +311,21 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color, geno
 
     lower = 105
 
-    # Format: track_cols[desired_col] = [plot_type, desired_data]
-    for index, (key, val) in enumerate(track_cols.items()):
+    # Format: track_cols[0] = [desired_col, plot_type, desired_data]
+    for index, [desired_col, plot_type, desired_data] in enumerate(track_cols):
 
         upper = lower - 5
-        if key == 'Gene Location':
+        if desired_col == 'Gene Location':
             width = 5
-        elif val[0] == 'bar':
+        elif plot_type == 'bar':
             width = 75/len(track_cols)
         else:
             width = 50/len(track_cols)
         lower = upper - width
 
         # Get the colors for given column if it is not Gene Location
-        if key != 'Gene Location':
-            full_data['color_' + str(index)] = get_colormap(val[1])
+        if desired_col != 'Gene Location':
+            full_data['color_' + str(index)] = get_colormap(desired_data)
 
         for chrom_num, sector_obj in enumerate(circos.sectors):
             
@@ -339,67 +339,65 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color, geno
             # Add y-ticks only on the left side of the chr01 sector
             if get_chrom_num(sector_obj.name) == 'chr01':  
 
-                if key == 'Gene Location':
+                if desired_col == 'Gene Location':
                     track.yticks([0, 1], list("-+"), vmin=0, vmax=1, side="left")
 
                 # Only add tick marks to tracks that are not bar or line    
-                elif val[0] not in ['bar', 'line']:
-                    track.yticks(y=np.linspace(val[1].min(), val[1].max(), num=5), \
-                                 labels=[f"{round(tick)}" for tick in np.linspace(val[1].min(), val[1].max(), num=5)], \
-                                 vmin=val[1].min(), vmax=val[1].max(), side="left", label_size=7-index)
+                elif plot_type not in ['bar', 'line']:
+                    track.yticks(y=np.linspace(desired_data.min(), desired_data.max(), num=5), \
+                                 labels=[f"{round(tick)}" for tick in np.linspace(desired_data.min(), desired_data.max(), num=5)], \
+                                 vmin=desired_data.min(), vmax=desired_data.max(), side="left", label_size=7-index)
         
             # If given track is not Gene Location
-            if key != 'Gene Location':
+            if desired_col != 'Gene Location':
 
                 # Get subset from full_data of all the rows with a specific chromosome
                 chr_data = full_data[full_data['Chromosome'] == str(chrom_num+1)].reset_index(drop=True)
                 
                 if full_data is not None:
 
-                    if val[0] == 'dot':
+                    if plot_type == 'dot':
 
-                        track.scatter(chr_data['Begin'].tolist(), chr_data[key].tolist(), color=chr_data['color_' + str(index)], cmap='coolwarm', vmin=val[1].min(), vmax=val[1].max(), s=5)
+                        track.scatter(chr_data['Begin'].tolist(), chr_data[desired_col].tolist(), color=chr_data['color_' + str(index)], 
+                                      cmap='coolwarm', vmin=desired_data.min(), vmax=desired_data.max(), s=5)
 
-                    if not pd.isna(chr_data[key].max()):
+                    if not pd.isna(chr_data[desired_col].max()):
 
-                        if val[0] == 'line':
-
-                            # Add a dotted line from col min to col max
-                            track.line([track.start, track.end], [full_data[key].min(), full_data[key].max()], vmin=full_data[key].min(), vmax=full_data[key].max(), lw=1.5, ls="dotted")
+                        if plot_type == 'line':
 
                             # Add solid line connecting data points
                             chr_data_sorted = chr_data.sort_values(by='Begin')
-                            track.line(chr_data_sorted['Begin'].tolist(), chr_data_sorted[key].tolist(), vmin=val[1].min(), vmax=full_data[key].max())
+                            track.line(chr_data_sorted['Begin'].tolist(), chr_data_sorted[desired_col].tolist(), vmin=desired_data.min(), vmax=full_data[desired_col].max())
 
-                        elif val[0] == 'bar':
+                        elif plot_type == 'bar':
 
                             # Ensure the column has values in it
-                            vmin = 0 if full_data[key].min() > 0 else full_data[key].min()
-                            track.bar(chr_data['Begin'].tolist(), chr_data[key].tolist(), ec=bar_color, lw=0.9, vmin=vmin, vmax=full_data[key].max())
+                            vmin = 0 if full_data[desired_col].min() > 0 else full_data[desired_col].min()
+                            track.bar(chr_data['Begin'].tolist(), chr_data[desired_col].tolist(), ec=bar_color, lw=0.9, vmin=vmin, vmax=full_data[desired_col].max())
 
             # If user manually included gene IDs
             else:
-                for chrom, x, _, orientation, _, color_to_use in val[1]:
+                for chrom, x, _, orientation, _, color_to_use in desired_data:
                     if chrom == sector_obj.name:
                         y = 1 if orientation.value == 'plus' else 0
                         track.scatter([x], [y], color=color_to_use, s=20)
 
     # Add colorbar for expression level columns
-    exp_cols = [[col, val[0]] for col, val in track_cols.items() if col != 'Gene Location']
+    exp_cols = [[desired_col, plot_type] for desired_col, plot_type, _ in track_cols if desired_col != 'Gene Location']
 
-    for index, (col, val) in enumerate(exp_cols):
+    for index, (desired_col, plot_type) in enumerate(exp_cols):
 
-        if val == 'bar' or val == 'line':
+        if plot_type == 'bar' or plot_type == 'line':
 
-            label = col
+            label = desired_col
             # Shorten title if we are examining Expression level
-            if col == 'Expression level (average normalized FPKM of all 36 samples)':
+            if desired_col == 'Expression level (average normalized FPKM of all 36 samples)':
                 label = 'Average normalized FPKM expression'
 
             circos.colorbar(
                 bounds=(0.9, 1+index*0.1, 0.25, 0),
-                vmin=full_data[col].min(),
-                vmax=full_data[col].max(),
+                vmin=full_data[desired_col].min(),
+                vmax=full_data[desired_col].max(),
                 orientation="horizontal",
                 label=label,
                 label_kws=dict(size=10, color="black"),
@@ -409,11 +407,11 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color, geno
         else:
             circos.colorbar(
                 bounds=(0.9, 1+index*0.1, 0.25, 0.02),
-                vmin=full_data[col].min(),
-                vmax=full_data[col].max(),
+                vmin=full_data[desired_col].min(),
+                vmax=full_data[desired_col].max(),
                 cmap="coolwarm",
                 orientation="horizontal",
-                label=col,
+                label=desired_col,
                 label_kws=dict(size=10, color="black"),
                 tick_kws=dict(labelsize=8, colors="black")
             )
@@ -423,16 +421,17 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color, geno
     # Render the plot using Matplotlib
     fig = circos.plotfig()
 
-    # Add legend for selected gene IDs 
-    scatter_legend = circos.ax.legend(
-        handles=[plt.Line2D([0], [0], color=row[-1], marker='o', ls='None', ms=8) for row in genomic_ranges],  
-        labels=[row[4] for row in genomic_ranges],  
-        bbox_to_anchor=(0.1, 1+index*0.1, 0.25, 0.02),
-        fontsize=8,
-        title="Gene ID",
-        handlelength=2
-    )
-    circos.ax.add_artist(scatter_legend)
+    if genomic_ranges:
+        # Add legend for selected gene IDs 
+        scatter_legend = circos.ax.legend(
+            handles=[plt.Line2D([0], [0], color=row[-1], marker='o', ls='None', ms=8) for row in genomic_ranges],  
+            labels=[row[4] for row in genomic_ranges],  
+            bbox_to_anchor=(0.1, 1+index*0.1, 0.25, 0.02),
+            fontsize=8,
+            title="Gene ID",
+            handlelength=2
+        )
+        circos.ax.add_artist(scatter_legend)
 
     # Display the plot in Streamlit
     st.pyplot(fig)
