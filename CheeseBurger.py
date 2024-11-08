@@ -128,7 +128,7 @@ def main() -> None:
         try:
             if st.button('Click to plot!'):
                 st.write('Plotting!')
-                display_circos_plot(data, full_data, track_cols, bar_color)
+                display_circos_plot(data, full_data, track_cols, bar_color, genomic_ranges)
         except (KeyError):
             st.error('WARNING: There was an error displaying the plot.')
             return
@@ -303,7 +303,7 @@ def get_chrom_num(key: str) -> str:
         return None
 
 
-def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> None:
+def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color, genomic_ranges) -> None:
     
     # Prepare Circos plot with sectors (using chromosome sizes)
     sectors = {str(row[1]['Chromosome']): row[1]['Size (bp)'] for row in data.iterrows()}
@@ -422,6 +422,17 @@ def display_circos_plot(data: dict, full_data, track_cols: dict, bar_color) -> N
 
     # Render the plot using Matplotlib
     fig = circos.plotfig()
+
+    # Add legend for selected gene IDs 
+    scatter_legend = circos.ax.legend(
+        handles=[plt.Line2D([0], [0], color=row[-1], marker='o', ls='None', ms=8) for row in genomic_ranges],  
+        labels=[row[4] for row in genomic_ranges],  
+        bbox_to_anchor=(0.1, 1+index*0.1, 0.25, 0.02),
+        fontsize=8,
+        title="Gene ID",
+        handlelength=2
+    )
+    circos.ax.add_artist(scatter_legend)
 
     # Display the plot in Streamlit
     st.pyplot(fig)
