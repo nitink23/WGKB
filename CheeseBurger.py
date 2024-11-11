@@ -76,7 +76,7 @@ def main() -> None:
         available_tracks = [1, 2, 3, 4, 5] if full_data is not None else [1]
         num_tracks = st.selectbox("How many tracks would you like to visualize? (Upload gene expression file to view more than 1 track)", available_tracks)
         track_correction = 0
-        bar = False
+        line, bar = False, False
 
         if full_data is not None and num_tracks >= 1:
             bar = st.checkbox("Would you like one of these tracks to be a bar plot? (Can only be visualized on bottom track)")
@@ -100,13 +100,24 @@ def main() -> None:
 
             if desired_col == 'Gene Location':
                 desired_data = genomic_ranges
+                omit_pct = 0
             else:
                 desired_data = full_data[desired_col]
 
                 if invalid_col(full_data, desired_col):
                     return
+                
+                # Add slider for user to omit certain values close to mean
+                omit_pct = st.slider(
+                    label="Choose a cutoff to omit points close to the mean",
+                    min_value=0,
+                    max_value=100,
+                    value=0,
+                    step=1,
+                    key='track_slider_' + str(track)
+                )
 
-            track_cols.append([desired_col, 'dot', desired_data])
+            track_cols.append([desired_col, 'dot', desired_data, omit_pct])
         
         # Add data to track_cols dict when user wants line or bar track
         for track_type in ['line' if line else None, 'bar' if bar else None]:
@@ -123,7 +134,7 @@ def main() -> None:
                 
                 if desired_col != 'Gene Location':
                     desired_data = full_data[desired_col]
-                    track_cols.append([desired_col, track_type, desired_data])
+                    track_cols.append([desired_col, track_type, desired_data, 0])
 
         try:
             if st.button('Click to plot!'):
@@ -311,8 +322,8 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
 
     lower = 105
 
-    # Format: track_cols[0] = [desired_col, plot_type, desired_data]
-    for index, [desired_col, plot_type, desired_data] in enumerate(track_cols):
+    # Format: track_cols[0] = [desired_col, plot_type, desired_data, omit_pct]
+    for index, [desired_col, plot_type, desired_data, omit_pct] in enumerate(track_cols):
 
         upper = lower - 5
         if desired_col == 'Gene Location':
@@ -358,6 +369,14 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
 
                     if plot_type == 'dot':
 
+                        # Remove points close to the mean if user selected:
+                        if omit_pct > 0:
+
+                            lower_bound = desired_data.quantile((100 - omit_pct) / 200)
+                            upper_bound = desired_data.quantile(1 - (100 - omit_pct) / 200)
+
+                            chr_data = chr_data[(chr_data[desired_col] < lower_bound) | (chr_data[desired_col] > upper_bound)]
+
                         track.scatter(chr_data['Begin'].tolist(), chr_data[desired_col].tolist(), color=chr_data['color_' + str(index)], 
                                       cmap='coolwarm', vmin=desired_data.min(), vmax=desired_data.max(), s=5)
 
@@ -383,35 +402,34 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
                         track.scatter([x], [y], color=color_to_use, s=20)
 
     # Add colorbar for expression level columns
-    exp_cols = [[desired_col, plot_type] for desired_col, plot_type, _ in track_cols if desired_col != 'Gene Location']
+    exp_cols = [[desired_col, plot_type, index] for index, [desired_col, plot_type, _, _] in enumerate(track_cols) if desired_col != 'Gene Location']
 
-    for index, (desired_col, plot_type) in enumerate(exp_cols):
+    for index, (label, plot_type, track_index) in enumerate(exp_cols):
 
         if plot_type == 'bar' or plot_type == 'line':
 
-            label = desired_col
             # Shorten title if we are examining Expression level
-            if desired_col == 'Expression level (average normalized FPKM of all 36 samples)':
+            if label == 'Expression level (average normalized FPKM of all 36 samples)':
                 label = 'Average normalized FPKM expression'
 
             circos.colorbar(
-                bounds=(0.9, 1+index*0.1, 0.25, 0),
-                vmin=full_data[desired_col].min(),
-                vmax=full_data[desired_col].max(),
+                bounds=(0.93, 1+index*0.1, 0.25, 0),
+                vmin=full_data[label].min(),
+                vmax=full_data[label].max(),
                 orientation="horizontal",
-                label=label,
+                label=f'Track {track_index+1}: ' + label,
                 label_kws=dict(size=10, color="black"),
                 tick_kws=dict(labelsize=8, colors="black")
             )
 
         else:
             circos.colorbar(
-                bounds=(0.9, 1+index*0.1, 0.25, 0.02),
-                vmin=full_data[desired_col].min(),
-                vmax=full_data[desired_col].max(),
+                bounds=(0.93, 1+index*0.1, 0.25, 0.02),
+                vmin=full_data[label].min(),
+                vmax=full_data[label].max(),
                 cmap="coolwarm",
                 orientation="horizontal",
-                label=desired_col,
+                label=f'Track {track_index+1}: ' + label,
                 label_kws=dict(size=10, color="black"),
                 tick_kws=dict(labelsize=8, colors="black")
             )
@@ -421,16 +439,20 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
     # Render the plot using Matplotlib
     fig = circos.plotfig()
 
-    if genomic_ranges:
-        # Add legend for selected gene IDs 
+    # Add legend for selected gene IDs
+    if 'Gene Location' in [col for col, _, _, _ in track_cols]:
+         
         scatter_legend = circos.ax.legend(
             handles=[plt.Line2D([0], [0], color=row[-1], marker='o', ls='None', ms=8) for row in genomic_ranges],  
             labels=[row[4] for row in genomic_ranges],  
-            bbox_to_anchor=(0.1, 1+index*0.1, 0.25, 0.02),
+            bbox_to_anchor=(-0.14, 1.1),
+            loc='upper left',
             fontsize=8,
             title="Gene ID",
             handlelength=2
         )
+
+        scatter_legend._legend_title_box._text_pad = 5
         circos.ax.add_artist(scatter_legend)
 
     # Display the plot in Streamlit
