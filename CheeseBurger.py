@@ -136,6 +136,13 @@ def main() -> None:
                     desired_data = full_data[desired_col]
                     track_cols.append([desired_col, track_type, desired_data, 0])
 
+        # Plot genes not associated with any chromosome
+        if st.checkbox('Would you like to plot the genes not associated with a chromosome?'):
+            rem_genes_color = st.color_picker('Select which color you would like to use to visualize the remaining genes', '#ff0000', key='rem_genes_color')
+            if st.button('Click to plot genes without chromosome'):
+                plot_rem_genes(walnut_gene_meta, rem_genes_color)
+
+        # Plot main Circos plot
         try:
             if st.button('Click to plot!'):
                 st.write('Plotting!')
@@ -458,5 +465,29 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
     # Display the plot in Streamlit
     st.pyplot(fig)
 
+
+def plot_rem_genes(walnut_gene_meta, color) -> None:
+    rem_genes_df = walnut_gene_meta[pd.isna(walnut_gene_meta['Chromosome'])]
+    sectors = {rem_genes_df['Accession'].iloc[0]: max(rem_genes_df['Begin'])}
+    circos = Circos(sectors, space=10)
+
+    for sector_obj in circos.sectors:
+            
+        # Plot sector name
+        sector_obj.text(f"{sector_obj}", r=110, size=10)
+
+        track = sector_obj.add_track((70, 100), r_pad_ratio=0.1)
+        track.axis()
+
+        # Add y-ticks only on the left side of the chr01 sector
+        track.yticks(y=np.linspace(min(rem_genes_df['Begin']), max(rem_genes_df['Begin']), num=5), \
+                     labels=[f"{round(tick)}" for tick in np.linspace(min(rem_genes_df['Begin']), max(rem_genes_df['Begin']), num=5)], \
+                     vmin=min(rem_genes_df['Begin']), vmax=max(rem_genes_df['Begin']), side="left", label_size=7)
+
+        track.scatter(rem_genes_df['Begin'].tolist(), rem_genes_df.index.tolist(), color=color, 
+                      vmin=min(rem_genes_df.index.tolist()), vmax=max(rem_genes_df.index.tolist()), s=5)
+
+    fig_2 = circos.plotfig()
+    st.pyplot(fig_2)
 
 main()
