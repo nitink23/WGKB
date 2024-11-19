@@ -146,7 +146,7 @@ def main() -> None:
         try:
             if st.button('Click to plot!'):
                 st.write('Plotting!')
-                display_circos_plot(data, full_data, track_cols, bar_color, genomic_ranges)
+                display_circos_plot(data, full_data, track_cols, bar_color, genomic_ranges, omit_pct)
         except (KeyError):
             st.error('WARNING: There was an error displaying the plot.')
             return
@@ -321,7 +321,7 @@ def get_chrom_num(key: str) -> str:
         return None
 
 
-def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, genomic_ranges) -> None:
+def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, genomic_ranges, omit_pct) -> None:
     
     # Prepare Circos plot with sectors (using chromosome sizes)
     sectors = {str(row[1]['Chromosome']): row[1]['Size (bp)'] for row in data.iterrows()}
@@ -462,6 +462,36 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
         scatter_legend._legend_title_box._text_pad = 5
         circos.ax.add_artist(scatter_legend)
 
+    # Add legend for sliders
+    removal_legend_items = [
+        (f"Track {track_index + 1}: Omit {omit_pct}% around median", track_index)
+        for track_index, (_, _, _, omit_pct) in enumerate(track_cols)
+        if omit_pct > 0
+    ]
+    # Add removal legend if there are items
+    if removal_legend_items:
+
+        # Create handles and labels for all tracks in one go
+        legend_handles = [
+            plt.Line2D([0], [0], color="black", linestyle='None')
+            for _ in removal_legend_items
+        ]
+        legend_labels = [label for label, _ in removal_legend_items]
+
+        removal_legend = circos.ax.legend(
+            handles=legend_handles,  
+            labels=legend_labels,  
+            bbox_to_anchor=(-0.16, 0),
+            loc='lower left',
+            title="Median Percentile Removal",
+            fontsize=6,
+            title_fontsize=8,
+            handlelength=1.5
+        )
+
+        removal_legend._legend_title_box._text_pad = 5
+        circos.ax.add_artist(removal_legend)
+        
     # Display the plot in Streamlit
     st.pyplot(fig)
 
