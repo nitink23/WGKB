@@ -348,7 +348,7 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
         for chrom_num, sector_obj in enumerate(circos.sectors):
             
             # Plot sector name
-            sector_obj.text(f"{get_chrom_num(sector_obj.name)}", r=120, size=10)
+            sector_obj.text(f"{get_chrom_num(sector_obj.name)}", r=110, size=10)
 
             # Add sector with correct sizing per number of tracks
             track = sector_obj.add_track((lower, upper), r_pad_ratio=0.1)
@@ -361,15 +361,15 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
                 track.xticks_by_interval(
                     interval=20 * 1_000_000,
                     label_orientation="vertical",
-                    tick_length=5,
+                    tick_length=2,
                     label_formatter=lambda v: f"{v / 1_000_000:.0f}Mb",
-                    label_size=7-index
+                    label_size=4
                 )
 
                 # Minor ticks (every 5 Mb)
                 track.xticks_by_interval(
                     interval=5 * 1_000_000,
-                    tick_length=3,
+                    tick_length=1,
                     show_label=False,  # No labels for minor ticks
                 )
                 
