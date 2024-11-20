@@ -500,11 +500,11 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
         removal_legend = circos.ax.legend(
             handles=legend_handles,  
             labels=legend_labels,  
-            bbox_to_anchor=(-0.16, 0),
+            bbox_to_anchor=(-0.14, 0),
             loc='lower left',
             title="Median Percentile Removal",
             fontsize=6,
-            title_fontsize=8,
+            title_fontsize=7,
             handlelength=1.5
         )
 
