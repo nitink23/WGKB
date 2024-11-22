@@ -138,15 +138,29 @@ def main() -> None:
 
         # Plot genes not associated with any chromosome
         if st.checkbox('Would you like to plot the genes not associated with a chromosome?'):
-            rem_genes_color = st.color_picker('Select which color you would like to use to visualize the remaining genes', '#ff0000', key='rem_genes_color')
+
+            desired_col = st.selectbox(f"Select which data you would like to visualize in remaining genes track:", available_cols)
+            rem_genes_color = st.color_picker(f"Pick a color for remaining genes plot", '#ff0000', key=f"rem_genes_color")
+            omit_pct = st.slider(
+                    label="Choose a cutoff to omit points close to the mean",
+                    min_value=0,
+                    max_value=100,
+                    value=0,
+                    step=1,
+                    key='track_slider_rem_genes'
+                    )
+
             if st.button('Click to plot genes without chromosome'):
-                plot_rem_genes(walnut_gene_meta, rem_genes_color)
+                if desired_col != 'Gene Location':
+                    plot_rem_genes(full_data, desired_col, omit_pct, rem_genes_color)
+                else:
+                    st.warning('Cannot visualize Gene Location on remaining genes track.')
 
         # Plot main Circos plot
         try:
             if st.button('Click to plot!'):
                 st.write('Plotting!')
-                display_circos_plot(data, full_data, track_cols, bar_color, genomic_ranges, omit_pct)
+                display_circos_plot(data, full_data, track_cols, bar_color, genomic_ranges)
         except (KeyError):
             st.error('WARNING: There was an error displaying the plot.')
             return
@@ -321,7 +335,7 @@ def get_chrom_num(key: str) -> str:
         return None
 
 
-def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, genomic_ranges, omit_pct) -> None:
+def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, genomic_ranges) -> None:
     
     # Prepare Circos plot with sectors (using chromosome sizes)
     sectors = {str(row[1]['Chromosome']): row[1]['Size (bp)'] for row in data.iterrows()}
@@ -439,24 +453,24 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
                 label = 'Average normalized FPKM expression'
 
             circos.colorbar(
-                bounds=(0.93, 1+index*0.1, 0.25, 0),
+                bounds=(0.92, 1+index*0.1, 0.2, 0),
                 vmin=full_data[label].min(),
                 vmax=full_data[label].max(),
                 orientation="horizontal",
                 label=f'Track {track_index+1}: ' + label,
-                label_kws=dict(size=10, color="black"),
+                label_kws=dict(size=8, color="black"),
                 tick_kws=dict(labelsize=8, colors="black")
             )
 
         else:
             circos.colorbar(
-                bounds=(0.93, 1+index*0.1, 0.25, 0.02),
+                bounds=(0.92, 1+index*0.1, 0.2, 0.02),
                 vmin=full_data[label].min(),
                 vmax=full_data[label].max(),
                 cmap="coolwarm",
                 orientation="horizontal",
                 label=f'Track {track_index+1}: ' + label,
-                label_kws=dict(size=10, color="black"),
+                label_kws=dict(size=8, color="black"),
                 tick_kws=dict(labelsize=8, colors="black")
             )
 
@@ -515,9 +529,11 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
     st.pyplot(fig)
 
 
-def plot_rem_genes(walnut_gene_meta, color) -> None:
+def plot_rem_genes(full_data, desired_col, omit_pct, color) -> None:
 
-    rem_genes_df = walnut_gene_meta[pd.isna(walnut_gene_meta['Chromosome'])].reset_index()
+    rem_genes_df = full_data[pd.isna(full_data['Chromosome'])].reset_index()
+    desired_data = rem_genes_df[desired_col]
+
     sectors = {rem_genes_df['Accession'].iloc[0]: max(rem_genes_df.index.tolist())}
     circos = Circos(sectors, space=10)
 
@@ -526,26 +542,34 @@ def plot_rem_genes(walnut_gene_meta, color) -> None:
         track = sector_obj.add_track((70, 100), r_pad_ratio=0.1)
         track.axis()
 
-        # Add y-ticks only on the left side of the chr01 sector
-        track.yticks(y=np.linspace(min(rem_genes_df['Begin']), max(rem_genes_df['Begin']), num=5), \
-                     labels=[f"{round(tick)}" for tick in np.linspace(min(rem_genes_df['Begin']), max(rem_genes_df['Begin']), num=5)], \
-                     vmin=min(rem_genes_df['Begin']), vmax=max(rem_genes_df['Begin']), side="left", label_size=7)
+        # Add y-ticks only on the left side
+        track.yticks(y=np.linspace(min(desired_data), max(desired_data), num=5), \
+                     labels=[f"{round(tick)}" for tick in np.linspace(min(desired_data), max(desired_data), num=5)], \
+                     vmin=min(desired_data), vmax=max(desired_data), side="left", label_size=7)
 
-        track.scatter(rem_genes_df.index.tolist(), rem_genes_df['Begin'].tolist(), color=color, 
-                      vmin=min(rem_genes_df['Begin'].tolist()), vmax=max(rem_genes_df['Begin'].tolist()), s=5)
+        if omit_pct > 0:
+
+            lower_bound = desired_data.quantile((100 - omit_pct) / 200)
+            upper_bound = desired_data.quantile(1 - (100 - omit_pct) / 200)
+
+            desired_data = desired_data[(desired_data < lower_bound) | (desired_data > upper_bound)]
+
+        rem_genes_x = desired_data.index.tolist()
+        desired_data = desired_data.tolist()
+
+        track.scatter(x=rem_genes_x, y=desired_data, color=color, 
+                      vmin=min(desired_data), vmax=max(desired_data), s=12)
         
         # Add y-axis gridlines manually
         track.grid()
 
         # Add xticks for index
-        indices = rem_genes_df.index.tolist()
-        major_interval = max(indices) // 10
-        minor_interval = max(indices) // 50  # Minor ticks more frequent
+        indices = list(range(len(desired_data)))
 
         # Major ticks
-        track.xticks(
-            x=indices[::major_interval],  # Major tick positions
-            labels=[str(idx) for idx in indices[::major_interval]],  # Major tick labels
+        track.xticks_by_interval(
+            interval=max(indices) // 10,
+            show_label=True,
             label_orientation="vertical",
             tick_length=2,
             label_size=10,
@@ -553,6 +577,7 @@ def plot_rem_genes(walnut_gene_meta, color) -> None:
         )
 
         # Minor ticks
+        minor_interval = 1 if max(indices) // 50 == 0 else max(indices) // 50
         track.xticks_by_interval(
             interval=minor_interval,  # Minor ticks at a smaller interval
             outer=False,
@@ -573,6 +598,25 @@ def plot_rem_genes(walnut_gene_meta, color) -> None:
 
     scatter_legend._legend_title_box._text_pad = 5
     circos.ax.add_artist(scatter_legend)
+
+    if omit_pct > 0:
+
+        legend_handles = [plt.Line2D([0], [0], color="black", linestyle='None')]
+        legend_labels = [f"Remaining Genes Track: Omit {omit_pct}% around median"]
+
+        removal_legend = circos.ax.legend(
+            handles=legend_handles,  
+            labels=legend_labels,  
+            bbox_to_anchor=(-0.1, 0),
+            loc='lower left',
+            title="Median Percentile Removal",
+            fontsize=9,
+            title_fontsize=10,
+            handlelength=1.5
+        )
+
+        removal_legend._legend_title_box._text_pad = 5
+        circos.ax.add_artist(removal_legend)
 
     st.pyplot(fig_2)
 
