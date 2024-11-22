@@ -363,7 +363,7 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
                     label_orientation="vertical",
                     tick_length=2,
                     label_formatter=lambda v: f"{v / 1_000_000:.0f}Mb",
-                    label_size=4
+                    label_size=5
                 )
 
                 # Minor ticks (every 5 Mb)
@@ -500,7 +500,7 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
         removal_legend = circos.ax.legend(
             handles=legend_handles,  
             labels=legend_labels,  
-            bbox_to_anchor=(-0.14, 0),
+            bbox_to_anchor=(-0.17, 0),
             loc='lower left',
             title="Median Percentile Removal",
             fontsize=6,
@@ -516,14 +516,12 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
 
 
 def plot_rem_genes(walnut_gene_meta, color) -> None:
-    rem_genes_df = walnut_gene_meta[pd.isna(walnut_gene_meta['Chromosome'])]
-    sectors = {rem_genes_df['Accession'].iloc[0]: max(rem_genes_df['Begin'])}
+
+    rem_genes_df = walnut_gene_meta[pd.isna(walnut_gene_meta['Chromosome'])].reset_index()
+    sectors = {rem_genes_df['Accession'].iloc[0]: max(rem_genes_df.index.tolist())}
     circos = Circos(sectors, space=10)
 
     for sector_obj in circos.sectors:
-            
-        # Plot sector name
-        sector_obj.text(f"{sector_obj}", r=110, size=10)
 
         track = sector_obj.add_track((70, 100), r_pad_ratio=0.1)
         track.axis()
@@ -533,10 +531,49 @@ def plot_rem_genes(walnut_gene_meta, color) -> None:
                      labels=[f"{round(tick)}" for tick in np.linspace(min(rem_genes_df['Begin']), max(rem_genes_df['Begin']), num=5)], \
                      vmin=min(rem_genes_df['Begin']), vmax=max(rem_genes_df['Begin']), side="left", label_size=7)
 
-        track.scatter(rem_genes_df['Begin'].tolist(), rem_genes_df.index.tolist(), color=color, 
-                      vmin=min(rem_genes_df.index.tolist()), vmax=max(rem_genes_df.index.tolist()), s=5)
+        track.scatter(rem_genes_df.index.tolist(), rem_genes_df['Begin'].tolist(), color=color, 
+                      vmin=min(rem_genes_df['Begin'].tolist()), vmax=max(rem_genes_df['Begin'].tolist()), s=5)
+        
+        # Add y-axis gridlines manually
+        track.grid()
 
+        # Add xticks for index
+        indices = rem_genes_df.index.tolist()
+        major_interval = max(indices) // 10
+        minor_interval = max(indices) // 50  # Minor ticks more frequent
+
+        # Major ticks
+        track.xticks(
+            x=indices[::major_interval],  # Major tick positions
+            labels=[str(idx) for idx in indices[::major_interval]],  # Major tick labels
+            label_orientation="vertical",
+            tick_length=2,
+            label_size=10,
+            outer=False,
+        )
+
+        # Minor ticks
+        track.xticks_by_interval(
+            interval=minor_interval,  # Minor ticks at a smaller interval
+            outer=False,
+            tick_length=1,  # Shorter tick marks for minor ticks
+            show_label=False,  # No labels for minor ticks
+        )
+        
     fig_2 = circos.plotfig()
+        
+    # Add sector name as a legend
+    scatter_legend = circos.ax.legend(
+        bbox_to_anchor=(1.05, 1.05),
+        loc='upper right',
+        fontsize=8,
+        title=sector_obj,
+        handlelength=2
+    )
+
+    scatter_legend._legend_title_box._text_pad = 5
+    circos.ax.add_artist(scatter_legend)
+
     st.pyplot(fig_2)
 
 main()
