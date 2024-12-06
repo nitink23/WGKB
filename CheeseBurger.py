@@ -12,7 +12,7 @@ def main() -> None:
     data = pd.DataFrame({
     'Chromosome': ['NC_049901.1', 'NC_049902.1', 'NC_049903.1', 'NC_049904.1', 'NC_049905.1', 'NC_049906.1', 
                    'NC_049907.1', 'NC_049908.1', 'NC_049909.1', 'NC_049910.1', 'NC_049911.1', 'NC_049912.1',
-                   'NC_049913.1', 'NC_049914.1', 'NC_049915.1', 'NC_049916.1', 'NC_028617.1'],  
+                   'NC_049913.1', 'NC_049914.1', 'NC_049915.1', 'NC_049916.1', 'NC_028617.1'], 
     'Size (bp)': [45207397, 37821870, 35064427, 34823025, 22562875, 39020271, 52418484, 30564197, 24263475,
                   37707155, 37114715, 31492331, 39757759, 28841373, 20407330, 28711772, 160537]})
 
@@ -99,9 +99,13 @@ def main() -> None:
             desired_col = st.selectbox(f"Select which data you would like to visualize in track {track+1}:", available_cols)
 
             if desired_col == 'Gene Location':
+                
                 desired_data = genomic_ranges
                 omit_pct = 0
+                include_gene_loc = False
+
             else:
+                include_gene_loc = st.checkbox('Would you like to highlight selected genes in this track?', key='include_gene_loc_' + str(track))
                 desired_data = full_data[desired_col]
 
                 if invalid_col(full_data, desired_col):
@@ -117,7 +121,7 @@ def main() -> None:
                     key='track_slider_' + str(track)
                 )
 
-            track_cols.append([desired_col, 'dot', desired_data, omit_pct])
+            track_cols.append([desired_col, 'dot', desired_data, omit_pct, include_gene_loc])
         
         # Add data to track_cols dict when user wants line or bar track
         for track_type in ['line' if line else None, 'bar' if bar else None]:
@@ -125,6 +129,7 @@ def main() -> None:
             if track_type:
 
                 desired_col = st.selectbox(f"Select which data you would like to visualize in {track_type} track:", available_cols)
+                include_gene_loc = False
 
                 if track_type == 'bar':
                     bar_color = st.color_picker(f"Pick a color for bar plot", '#ff0000', key=f"color_picker_bar_track")
@@ -133,8 +138,11 @@ def main() -> None:
                     return
                 
                 if desired_col != 'Gene Location':
+                    
                     desired_data = full_data[desired_col]
-                    track_cols.append([desired_col, track_type, desired_data, 0])
+
+                    include_gene_loc = st.checkbox('Would you like to highlight selected genes in this track?', key='include_gene_loc_' + str(track_type))
+                    track_cols.append([desired_col, track_type, desired_data, 0, include_gene_loc])
 
         # Plot genes not associated with any chromosome
         if st.checkbox('Would you like to plot the genes not associated with a chromosome?'):
@@ -343,8 +351,8 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
 
     lower = 105
 
-    # Format: track_cols[0] = [desired_col, plot_type, desired_data, omit_pct]
-    for index, [desired_col, plot_type, desired_data, omit_pct] in enumerate(track_cols):
+    # Format: track_cols[0] = [desired_col, plot_type, desired_data, omit_pct, include_gene_loc]
+    for index, [desired_col, plot_type, desired_data, omit_pct, include_gene_loc] in enumerate(track_cols):
 
         upper = lower - 5
         if desired_col == 'Gene Location':
@@ -387,17 +395,18 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
                     show_label=False,  # No labels for minor ticks
                 )
                 
-            # Add y-ticks only on the left side of the chr01 sector
-            if get_chrom_num(sector_obj.name) == 'chr01':  
-
-                if desired_col == 'Gene Location':
+            if desired_col == 'Gene Location':
+                
+                # Add y-ticks only on the left side of the chr01 sector
+                if get_chrom_num(sector_obj.name) == 'chr01':  
                     track.yticks([0, 1], list("-+"), vmin=0, vmax=1, side="left")
 
-                # Only add tick marks to tracks that are not bar or line    
-                elif plot_type not in ['bar', 'line']:
+            # Only add tick marks to tracks that are not bar or line    
+            elif plot_type not in ['bar', 'line']:
+                if get_chrom_num(sector_obj.name) == 'chr01': 
                     track.yticks(y=np.linspace(desired_data.min(), desired_data.max(), num=5), \
-                                 labels=[f"{round(tick)}" for tick in np.linspace(desired_data.min(), desired_data.max(), num=5)], \
-                                 vmin=desired_data.min(), vmax=desired_data.max(), side="left", label_size=7-index)
+                                labels=[f"{round(tick)}" for tick in np.linspace(desired_data.min(), desired_data.max(), num=5)], \
+                                vmin=desired_data.min(), vmax=desired_data.max(), side="left", label_size=7-index)
         
             # If given track is not Gene Location
             if desired_col != 'Gene Location':
@@ -406,6 +415,15 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
                 chr_data = full_data[full_data['Chromosome'] == str(chrom_num+1)].reset_index(drop=True)
                 
                 if full_data is not None:
+
+                    # Get full data subset of the genes selected
+                    genomic_ranges_dict = {int(id): color for _, _, _, _, id, color in genomic_ranges}
+
+                    # Filter `full_data` by `genomic_ranges_ids`
+                    genomic_ranges_ids = list(genomic_ranges_dict.keys())
+                    gene_full_data = full_data[full_data['Gene ID'].isin(genomic_ranges_ids)].copy()
+                    gene_full_data['gene_color'] = gene_full_data['Gene ID'].map(genomic_ranges_dict)
+                    gene_chr_data = gene_full_data[gene_full_data['Chromosome'] == str(chrom_num + 1)].reset_index(drop=True)
 
                     if plot_type == 'dot':
 
@@ -420,6 +438,12 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
                         track.scatter(chr_data['Begin'].tolist(), chr_data[desired_col].tolist(), color=chr_data['color_' + str(index)], 
                                       cmap='coolwarm', vmin=desired_data.min(), vmax=desired_data.max(), s=5)
 
+                        # If user wants selected gene to be highlighted on current track
+                        if include_gene_loc:
+
+                            track.scatter(gene_chr_data['Begin'].tolist(), gene_chr_data[desired_col].tolist(), color=gene_chr_data['gene_color'], 
+                                          cmap='coolwarm', vmin=desired_data.min(), vmax=desired_data.max(), s=15)
+
                     if not pd.isna(chr_data[desired_col].max()):
 
                         if plot_type == 'line':
@@ -428,11 +452,21 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
                             chr_data_sorted = chr_data.sort_values(by='Begin')
                             track.line(chr_data_sorted['Begin'].tolist(), chr_data_sorted[desired_col].tolist(), vmin=desired_data.min(), vmax=full_data[desired_col].max())
 
+                            # If user wants selected gene to be highlighted on current track
+                            if include_gene_loc:
+                                track.scatter(gene_chr_data['Begin'].tolist(), gene_chr_data[desired_col].tolist(), color=gene_chr_data['gene_color'], 
+                                              cmap='coolwarm', vmin=desired_data.min(), vmax=desired_data.max(), s=15, zorder=2)
+
                         elif plot_type == 'bar':
 
                             # Ensure the column has values in it
                             vmin = 0 if full_data[desired_col].min() > 0 else full_data[desired_col].min()
                             track.bar(chr_data['Begin'].tolist(), chr_data[desired_col].tolist(), ec=bar_color, lw=0.9, vmin=vmin, vmax=full_data[desired_col].max())
+
+                            # If user wants selected gene to be highlighted on current track
+                            if include_gene_loc:
+                                track.bar(gene_chr_data['Begin'].tolist(), gene_chr_data[desired_col].tolist(), ec=gene_chr_data['gene_color'], 
+                                          lw=0.9, vmin=vmin, vmax=full_data[desired_col].max())
 
             # If user manually included gene IDs
             else:
@@ -442,7 +476,7 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
                         track.scatter([x], [y], color=color_to_use, s=20)
 
     # Add colorbar for expression level columns
-    exp_cols = [[desired_col, plot_type, index] for index, [desired_col, plot_type, _, _] in enumerate(track_cols) if desired_col != 'Gene Location']
+    exp_cols = [[desired_col, plot_type, index] for index, [desired_col, plot_type, _, _, _] in enumerate(track_cols) if desired_col != 'Gene Location']
 
     for index, (label, plot_type, track_index) in enumerate(exp_cols):
 
@@ -480,7 +514,7 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
     fig = circos.plotfig()
 
     # Add legend for selected gene IDs
-    if 'Gene Location' in [col for col, _, _, _ in track_cols]:
+    if 'Gene Location' in [col for col, _, _, _, _ in track_cols]:
          
         scatter_legend = circos.ax.legend(
             handles=[plt.Line2D([0], [0], color=row[-1], marker='o', ls='None', ms=8) for row in genomic_ranges],  
@@ -498,7 +532,7 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
     # Add legend for sliders
     removal_legend_items = [
         (f"Track {track_index + 1}: Omit {omit_pct}% around median", track_index)
-        for track_index, (_, _, _, omit_pct) in enumerate(track_cols)
+        for track_index, (_, _, _, omit_pct, _) in enumerate(track_cols)
         if omit_pct > 0
     ]
     # Add removal legend if there are items
@@ -527,7 +561,6 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
         
     # Display the plot in Streamlit
     st.pyplot(fig)
-
 
 def plot_rem_genes(full_data, desired_col, omit_pct, color) -> None:
 
