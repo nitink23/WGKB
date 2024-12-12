@@ -27,9 +27,9 @@ def main() -> None:
         url = 'https://raw.githubusercontent.com/nitink23/WGKB/main/juglans_regia.tsv'
     elif species_selection == 'Juglans microcarpa':
         data = pd.DataFrame({
-            'Chromosome': ['NC_054594.1', 'NC_054595.1', 'NC_054596.1', 'NC_054597.1', 'NC_054598.1', 'NC_054598.1',
-                           'NC_054599.1', 'NC_054600.1', 'NC_054601.1', 'NC_054602.1', 'NC_054603.1', 'NC_054604.1', 
-                           'NC_054605.1', 'NC_054606.1', 'NC_054607.1', 'NC_054608.1', 'NC_054609.1'],
+            'Chromosome': ['NC_054594.1', 'NC_054595.1', 'NC_054596.1', 'NC_054597.1', 'NC_054598.1', 'NC_054599.1',
+                            'NC_054600.1', 'NC_054601.1', 'NC_054602.1', 'NC_054603.1', 'NC_054604.1', 'NC_054605.1', 
+                            'NC_054606.1', 'NC_054607.1', 'NC_054608.1', 'NC_054609.1'],
             'Size (bp)': [49856174, 30169828, 43614719, 34707362, 39900371, 27832763, 35629462, 27577207, 35798223,
                           32113326, 38364907, 22373256, 26765518, 21889424, 36225362, 19962766]
         })
@@ -333,7 +333,8 @@ def display_gene_meta(gene_metadata, gene_ids: list) -> list:
 
 
 def get_chrom_num(key: str) -> str:
-    chrom_dict = {
+    
+    chrom_dict_regia = {
         'NC_049901.1': 'chr01',
         'NC_049902.1': 'chr02',
         'NC_049903.1': 'chr03',
@@ -351,8 +352,30 @@ def get_chrom_num(key: str) -> str:
         'NC_049915.1': 'chr15',
         'NC_049916.1': 'chr16',
         'NC_028617.1': 'Pltd'}
-    if key in chrom_dict.keys():
-        return chrom_dict[key]
+
+    chrom_dict_microcarpa = {
+        'NC_054594.1': 'chr01', 
+        'NC_054595.1': 'chr02', 
+        'NC_054596.1': 'chr03', 
+        'NC_054597.1': 'chr04', 
+        'NC_054598.1': 'chr05', 
+        'NC_054599.1': 'chr06',
+        'NC_054600.1': 'chr07', 
+        'NC_054601.1': 'chr08', 
+        'NC_054602.1': 'chr09', 
+        'NC_054603.1': 'chr10', 
+        'NC_054604.1': 'chr11', 
+        'NC_054605.1': 'chr12', 
+        'NC_054606.1': 'chr13', 
+        'NC_054607.1': 'chr14', 
+        'NC_054608.1': 'chr15', 
+        'NC_054609.1': 'chr16'
+    }
+
+    if key in chrom_dict_regia.keys():
+        return chrom_dict_regia[key]
+    elif key in chrom_dict_microcarpa.keys():
+        return chrom_dict_microcarpa[key]
     else:
         return None
 
@@ -533,7 +556,7 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
         scatter_legend = circos.ax.legend(
             handles=[plt.Line2D([0], [0], color=row[-1], marker='o', ls='None', ms=8) for row in genomic_ranges],  
             labels=[row[4] for row in genomic_ranges],  
-            bbox_to_anchor=(-0.14, 1.1),
+            bbox_to_anchor=(-0.12, 1.1),
             loc='upper left',
             fontsize=8,
             title="Gene ID",
