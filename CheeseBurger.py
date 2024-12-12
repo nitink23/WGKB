@@ -9,22 +9,36 @@ import numpy as np
 
 
 def main() -> None:
-    data = pd.DataFrame({
-    'Chromosome': ['NC_049901.1', 'NC_049902.1', 'NC_049903.1', 'NC_049904.1', 'NC_049905.1', 'NC_049906.1', 
-                   'NC_049907.1', 'NC_049908.1', 'NC_049909.1', 'NC_049910.1', 'NC_049911.1', 'NC_049912.1',
-                   'NC_049913.1', 'NC_049914.1', 'NC_049915.1', 'NC_049916.1', 'NC_028617.1'], 
-    'Size (bp)': [45207397, 37821870, 35064427, 34823025, 22562875, 39020271, 52418484, 30564197, 24263475,
-                  37707155, 37114715, 31492331, 39757759, 28841373, 20407330, 28711772, 160537]})
 
     st.title('Custom Circos Plot Generator with Gene Metadata Integration')
     st.markdown("###### Created by Paulo Zaini, Adam Hetherwick, Hibiki Ono, and Nitin Kanchi")
     st.markdown("### Enter GeneIDs and/or a gene expression file to get started")
 
+    # Allow user to select which species they would like to visualize
+    species_selection = st.selectbox('Select the genome you would like to visualize', ['Juglans regia', 'Juglans microcarpa'])
+    
+    if species_selection == 'Juglans regia':
+        data = pd.DataFrame({
+        'Chromosome': ['NC_049901.1', 'NC_049902.1', 'NC_049903.1', 'NC_049904.1', 'NC_049905.1', 'NC_049906.1', 
+                       'NC_049907.1', 'NC_049908.1', 'NC_049909.1', 'NC_049910.1', 'NC_049911.1', 'NC_049912.1',
+                       'NC_049913.1', 'NC_049914.1', 'NC_049915.1', 'NC_049916.1', 'NC_028617.1'], 
+        'Size (bp)': [45207397, 37821870, 35064427, 34823025, 22562875, 39020271, 52418484, 30564197, 24263475,
+                      37707155, 37114715, 31492331, 39757759, 28841373, 20407330, 28711772, 160537]})
+        url = 'https://raw.githubusercontent.com/nitink23/WGKB/main/juglans_regia.tsv'
+    elif species_selection == 'Juglans microcarpa':
+        data = pd.DataFrame({
+            'Chromosome': ['NC_054594.1', 'NC_054595.1', 'NC_054596.1', 'NC_054597.1', 'NC_054598.1', 'NC_054598.1',
+                           'NC_054599.1', 'NC_054600.1', 'NC_054601.1', 'NC_054602.1', 'NC_054603.1', 'NC_054604.1', 
+                           'NC_054605.1', 'NC_054606.1', 'NC_054607.1', 'NC_054608.1', 'NC_054609.1'],
+            'Size (bp)': [49856174, 30169828, 43614719, 34707362, 39900371, 27832763, 35629462, 27577207, 35798223,
+                          32113326, 38364907, 22373256, 26765518, 21889424, 36225362, 19962766]
+        })
+        url = 'https://raw.githubusercontent.com/nitink23/WGKB/main/juglans_microcarpa.tsv'
+
     # Allow user to upload optional gene expression file
     gene_exp_file = st.file_uploader('Upload a gene expression file (optional, must be .csv, .xls or .xlsx)', type=["csv", "xls", "xlsx"])
 
     # Read walnut gene metadata file straight from GitHub
-    url = 'https://raw.githubusercontent.com/nitink23/WGKB/main/ncbi_dataset.tsv'
     walnut_gene_meta = pd.read_csv(url, delimiter='\t')
 
     full_data, full_data_cols = None, []
