@@ -182,7 +182,7 @@ def main() -> None:
         try:
             if st.button('Click to plot!'):
                 st.write('Plotting!')
-                display_circos_plot(data, full_data, track_cols, bar_color, genomic_ranges)
+                display_circos_plot(data, full_data, track_cols, bar_color, genomic_ranges, species_selection)
         except (KeyError):
             st.error('WARNING: There was an error displaying the plot.')
             return
@@ -380,7 +380,7 @@ def get_chrom_num(key: str) -> str:
         return None
 
 
-def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, genomic_ranges) -> None:
+def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, genomic_ranges, species_selection) -> None:
     
     # Prepare Circos plot with sectors (using chromosome sizes)
     sectors = {str(row[1]['Chromosome']): row[1]['Size (bp)'] for row in data.iterrows()}
@@ -550,6 +550,16 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
     # Render the plot using Matplotlib
     fig = circos.plotfig()
 
+    species_legend = circos.ax.legend(
+        handles=[plt.Line2D([0], [0], color="black", linestyle='None', marker= "o")],
+        labels=[species_selection],
+        loc='center',
+        fontsize=10,
+        title="Species",
+        title_fontsize=12  # Set font size for the title
+        )
+ 
+    circos.ax.add_artist(species_legend)
     # Add legend for selected gene IDs
     if 'Gene Location' in [col for col, _, _, _, _ in track_cols]:
          
