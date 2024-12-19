@@ -24,7 +24,7 @@ def main() -> None:
                     '3. Scroll down and click \"View annotated genes\" \n'
                     '4. On the table, click the square next to \'Genomic Location\' to select all rows \n'
                     '5. Click download as table, one sequence per gene')
-        url = st.file_uploader('Upload the full gene metadata file (must be .txt or .tsv)', type=["txt", "tsv"])
+        url = st.file_uploader('Upload genome annotation file with gene list (must be .txt or .tsv)', type=["txt", "tsv"])
 
     if species_selection:
         data = get_chrom_locations(species_selection)
@@ -49,7 +49,8 @@ def main() -> None:
     if gene_exp_file:
         try:
             gene_exp_df = read_gene_exp_file(gene_exp_file)
-            full_data = pd.merge(gene_exp_df, genome_meta, on='Gene ID', how='inner')
+            gene_id_col = st.selectbox('Select which column has the Gene IDs', gene_exp_df.columns)
+            full_data = pd.merge(gene_exp_df, genome_meta, left_on=gene_id_col, right_on='Gene ID', how='inner')
             full_data_cols = full_data.columns
 
         except KeyError:
@@ -80,7 +81,7 @@ def main() -> None:
             color = st.color_picker(f"Pick a color for Gene ID {row[4]}", '#ff0000', key=f"color_picker_{row[4]}_{index}")
             row.append(color)
 
-        # Check to see if genomic ranges are valid, if invalid print warning and stop function
+        # Check to see if genomic ranges are valid, if invalid display warning and stop function
         if len(genomic_ranges) <= 0:
             gene_id_input = []
             genomic_ranges = []
@@ -292,9 +293,8 @@ def read_gene_exp_file(gene_exp_file):
     
     # See if column column headers are in row 1 or row 2
     col_row = st.selectbox('Select which row the column headers are in:', [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-    
     # Re-read gene_exp_df with correct headers
-    if str(gene_exp_file).endswith('.csv'):
+    if str(gene_exp_file.name).endswith('.csv'):
         gene_exp_df = pd.read_csv(gene_exp_file, header = col_row-1)
     else:
         gene_exp_df = pd.read_excel(gene_exp_file, header = col_row-1)
@@ -437,9 +437,7 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
             # Map the sector name using get_chrom_num
             sector_name = get_chrom_num(sector_obj.name)
             if sector_name is None:
-                print(f"Warning: No mapping found for sector: {sector_obj.name}")
-            else:
-                print(f"Plotting sector: {sector_obj.name} -> {sector_name}")
+                st.warning(f"Warning: No mapping found for sector: {sector_obj.name}")
                 
             # Plot sector name
             sector_obj.text(f"{sector_name}", r=110, size=10)
