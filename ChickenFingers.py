@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from pycirclize import Circos
 import matplotlib.pyplot as plt
-from ncbi.datasets import GeneApi
+from ncbi.datasets import GeneApi, GenomeApi
 from ncbi.datasets.openapi import ApiClient
 from ncbi.datasets.openapi.rest import ApiException
 import numpy as np
@@ -12,63 +12,44 @@ def main() -> None:
 
     st.title('Custom Circos Plot Generator with Gene Metadata Integration')
     st.markdown("###### Created by Paulo Zaini, Adam Hetherwick, Hibiki Ono, and Nitin Kanchi")
-    st.markdown("### Enter GeneIDs and/or a gene expression file to get started")
 
     # Allow user to select which species they would like to visualize
     species_selection = st.selectbox('Select the genome you would like to visualize', ['Juglans regia', 'Juglans microcarpa', 'Other'])
     
-    if species_selection == 'Juglans regia':
-        data = pd.DataFrame({
-        'Chromosome': ['NC_049901.1', 'NC_049902.1', 'NC_049903.1', 'NC_049904.1', 'NC_049905.1', 'NC_049906.1', 
-                       'NC_049907.1', 'NC_049908.1', 'NC_049909.1', 'NC_049910.1', 'NC_049911.1', 'NC_049912.1',
-                       'NC_049913.1', 'NC_049914.1', 'NC_049915.1', 'NC_049916.1', 'NC_028617.1'], 
-        'Size (bp)': [45207397, 37821870, 35064427, 34823025, 22562875, 39020271, 52418484, 30564197, 24263475,
-                      37707155, 37114715, 31492331, 39757759, 28841373, 20407330, 28711772, 160537]})
-        url = 'https://raw.githubusercontent.com/nitink23/WGKB/main/juglans_regia.tsv'
-    elif species_selection == 'Juglans microcarpa':
-        data = pd.DataFrame({
-            'Chromosome': ['NC_054594.1', 'NC_054595.1', 'NC_054596.1', 'NC_054597.1', 'NC_054598.1', 'NC_054599.1',
-                            'NC_054600.1', 'NC_054601.1', 'NC_054602.1', 'NC_054603.1', 'NC_054604.1', 'NC_054605.1', 
-                            'NC_054606.1', 'NC_054607.1', 'NC_054608.1', 'NC_054609.1'],
-            'Size (bp)': [49856174, 30169828, 43614719, 34707362, 39900371, 27832763, 35629462, 27577207, 35798223,
-                          32113326, 38364907, 22373256, 26765518, 21889424, 36225362, 19962766]
-        })
-        url = 'https://raw.githubusercontent.com/nitink23/WGKB/main/juglans_microcarpa.tsv'
-    elif species_selection == 'Other':
-        gene_meta_file = st.file_uploader('Upload a gene metadata file (must be .txt or .tsv)', type=["txt", "tsv"])
-        data = None
-        if gene_meta_file:
-            try:
-                gene_meta_df = pd.read_csv(gene_meta_file, sep='\t')
-                filtered_gene_meta_df = gene_meta_df[~gene_meta_df['Chromosome name'].str.contains("un", case=False, na=False)]
-                data = pd.DataFrame({
-                'Chromosome': filtered_gene_meta_df['RefSeq seq accession'],
-                'Size (bp)': filtered_gene_meta_df['Seq length']
-                })
-            
-            except KeyError:
-                st.warning("WARNING: The uploaded file must contain 'Chromosome name', 'RefSeq seq accession' and 'Seq length' columns")
-        url = st.file_uploader('Upload the full gene metadata file of your gene matadata (must be .txt or .tsv)', type=["txt", "tsv"])   
+    if species_selection == 'Other':
+        species_selection = st.text_input('Enter the name of the species you would like to visualize.')
+        st.markdown('To find the gene metadata file:\n'
+                    '1. Go to https://www.ncbi.nlm.nih.gov/ \n'
+                    '2. Search your species (Prunus persica for example) \n'
+                    '3. Scroll down and click \"View annotated genes\" \n'
+                    '4. On the table, click the square next to \'Genomic Location\' to select all rows \n'
+                    '5. Click download as table, one sequence per gene')
+        url = st.file_uploader('Upload the full gene metadata file (must be .txt or .tsv)', type=["txt", "tsv"])
+
+    if species_selection:
+        data = get_chrom_locations(species_selection)
     
-    # Determine the label for the legend
-    if species_selection in ['Juglans regia', 'Juglans microcarpa']:
-        sp_legend_label = [species_selection]  # Use species_selection for pre-defined options
-    else:
-        species_title_input = st.text_input('Enter the species name')  # Prompt user to enter species name
-        sp_legend_label = [species_title_input] if species_title_input else ['Unknown Species']
+    if species_selection == 'Juglans regia':
+        url = 'https://raw.githubusercontent.com/nitink23/WGKB/main/juglans_regia.tsv'
+
+    elif species_selection == 'Juglans microcarpa':
+        url = 'https://raw.githubusercontent.com/nitink23/WGKB/main/juglans_microcarpa.tsv'
+
+    st.markdown("#### Enter Gene IDs and/or a gene expression file to visualize")
 
     # Allow user to upload optional gene expression file
     gene_exp_file = st.file_uploader('Upload a gene expression file (optional, must be .csv, .xls or .xlsx)', type=["csv", "xls", "xlsx"])
 
-    # Read walnut gene metadata file straight from GitHub
-    walnut_gene_meta = pd.read_csv(url, delimiter='\t')
+    # Read genome metadata file straight from GitHub or user uploaded file
+    if url:
+        genome_meta = pd.read_csv(url, delimiter='\t')
 
     full_data, full_data_cols = None, []
 
     if gene_exp_file:
         try:
             gene_exp_df = read_gene_exp_file(gene_exp_file)
-            full_data = pd.merge(gene_exp_df, walnut_gene_meta, on='Gene ID', how='inner')
+            full_data = pd.merge(gene_exp_df, genome_meta, on='Gene ID', how='inner')
             full_data_cols = full_data.columns
 
         except KeyError:
@@ -204,10 +185,32 @@ def main() -> None:
         try:
             if st.button('Click to plot!'):
                 st.write('Plotting!')
-                display_circos_plot(data, full_data, track_cols, bar_color, genomic_ranges, species_selection, sp_legend_label)
+                display_circos_plot(data, full_data, track_cols, bar_color, genomic_ranges, species_selection)
         except (KeyError):
             st.error('WARNING: There was an error displaying the plot.')
             return
+
+
+def get_chrom_locations(organism_name: str) -> pd.DataFrame:
+
+    client = ApiClient()
+    genome_api = GenomeApi(client)
+
+    # Search for genome assemblies by organism name
+    genome_summaries = genome_api.assembly_descriptors_by_taxon(organism_name)
+    chromosomes = []
+    sizes = []
+
+    if genome_summaries.assemblies:
+        for chrom_dict in genome_summaries.assemblies[0]['assembly']['chromosomes']:
+            if chrom_dict.accession_version != None:
+                chromosomes.append(chrom_dict.accession_version)
+                sizes.append(int(chrom_dict.length))
+            
+    elif (not chromosomes) or (not sizes):
+        st.warning(f"No genomes found for organism: {organism_name}")
+
+    return pd.DataFrame({'Chromosome': chromosomes, 'Size (bp)': sizes})
 
 
 def fetch_gene_metadata(gene_ids):
@@ -406,7 +409,7 @@ def get_chrom_num(key: str, filtered_gene_meta_df=None) -> str:
     return chrom_name or key  # Fallback to key if no match found
 
 
-def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, genomic_ranges, species_selection, sp_legend_label) -> None:
+def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, genomic_ranges, species_selection) -> None:
     
     # Prepare Circos plot with sectors (using chromosome sizes)
     sectors = {str(row[1]['Chromosome']): row[1]['Size (bp)'] for row in data.iterrows()}
@@ -586,7 +589,7 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
 
     species_legend = circos.ax.legend(
         handles=[plt.Line2D([0], [0], color="black", linestyle='None', marker= "o")],
-        labels=sp_legend_label,
+        labels=species_selection,
         loc='center',
         fontsize=10,
         title="Species",

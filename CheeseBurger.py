@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from pycirclize import Circos
 import matplotlib.pyplot as plt
-from ncbi.datasets import GeneApi
+from ncbi.datasets import GeneApi, GenomeApi
 from ncbi.datasets.openapi import ApiClient
 from ncbi.datasets.openapi.rest import ApiException
 import numpy as np
@@ -12,41 +12,44 @@ def main() -> None:
 
     st.title('Custom Circos Plot Generator with Gene Metadata Integration')
     st.markdown("###### Created by Paulo Zaini, Adam Hetherwick, Hibiki Ono, and Nitin Kanchi")
-    st.markdown("### Enter GeneIDs and/or a gene expression file to get started")
 
     # Allow user to select which species they would like to visualize
-    species_selection = st.selectbox('Select the genome you would like to visualize', ['Juglans regia', 'Juglans microcarpa'])
+    species_selection = st.selectbox('Select the genome you would like to visualize', ['Juglans regia', 'Juglans microcarpa', 'Other'])
+    
+    if species_selection == 'Other':
+        species_selection = st.text_input('Enter the name of the species you would like to visualize.')
+        st.markdown('To find the gene metadata file:\n'
+                    '1. Go to https://www.ncbi.nlm.nih.gov/ \n'
+                    '2. Search your species (Prunus persica for example) \n'
+                    '3. Scroll down and click \"View annotated genes\" \n'
+                    '4. On the table, click the square next to \'Genomic Location\' to select all rows \n'
+                    '5. Click download as table, one sequence per gene')
+        url = st.file_uploader('Upload the full gene metadata file (must be .txt or .tsv)', type=["txt", "tsv"])
+
+    if species_selection:
+        data = get_chrom_locations(species_selection)
     
     if species_selection == 'Juglans regia':
-        data = pd.DataFrame({
-        'Chromosome': ['NC_049901.1', 'NC_049902.1', 'NC_049903.1', 'NC_049904.1', 'NC_049905.1', 'NC_049906.1', 
-                       'NC_049907.1', 'NC_049908.1', 'NC_049909.1', 'NC_049910.1', 'NC_049911.1', 'NC_049912.1',
-                       'NC_049913.1', 'NC_049914.1', 'NC_049915.1', 'NC_049916.1', 'NC_028617.1'], 
-        'Size (bp)': [45207397, 37821870, 35064427, 34823025, 22562875, 39020271, 52418484, 30564197, 24263475,
-                      37707155, 37114715, 31492331, 39757759, 28841373, 20407330, 28711772, 160537]})
         url = 'https://raw.githubusercontent.com/nitink23/WGKB/main/juglans_regia.tsv'
+
     elif species_selection == 'Juglans microcarpa':
-        data = pd.DataFrame({
-            'Chromosome': ['NC_054594.1', 'NC_054595.1', 'NC_054596.1', 'NC_054597.1', 'NC_054598.1', 'NC_054599.1',
-                            'NC_054600.1', 'NC_054601.1', 'NC_054602.1', 'NC_054603.1', 'NC_054604.1', 'NC_054605.1', 
-                            'NC_054606.1', 'NC_054607.1', 'NC_054608.1', 'NC_054609.1'],
-            'Size (bp)': [49856174, 30169828, 43614719, 34707362, 39900371, 27832763, 35629462, 27577207, 35798223,
-                          32113326, 38364907, 22373256, 26765518, 21889424, 36225362, 19962766]
-        })
         url = 'https://raw.githubusercontent.com/nitink23/WGKB/main/juglans_microcarpa.tsv'
+
+    st.markdown("#### Enter Gene IDs and/or a gene expression file to visualize")
 
     # Allow user to upload optional gene expression file
     gene_exp_file = st.file_uploader('Upload a gene expression file (optional, must be .csv, .xls or .xlsx)', type=["csv", "xls", "xlsx"])
 
-    # Read walnut gene metadata file straight from GitHub
-    walnut_gene_meta = pd.read_csv(url, delimiter='\t')
+    # Read genome metadata file straight from GitHub or user uploaded file
+    if url:
+        genome_meta = pd.read_csv(url, delimiter='\t')
 
     full_data, full_data_cols = None, []
 
     if gene_exp_file:
         try:
             gene_exp_df = read_gene_exp_file(gene_exp_file)
-            full_data = pd.merge(gene_exp_df, walnut_gene_meta, on='Gene ID', how='inner')
+            full_data = pd.merge(gene_exp_df, genome_meta, on='Gene ID', how='inner')
             full_data_cols = full_data.columns
 
         except KeyError:
@@ -186,6 +189,28 @@ def main() -> None:
         except (KeyError):
             st.error('WARNING: There was an error displaying the plot.')
             return
+
+
+def get_chrom_locations(organism_name: str) -> pd.DataFrame:
+
+    client = ApiClient()
+    genome_api = GenomeApi(client)
+
+    # Search for genome assemblies by organism name
+    genome_summaries = genome_api.assembly_descriptors_by_taxon(organism_name)
+    chromosomes = []
+    sizes = []
+
+    if genome_summaries.assemblies:
+        for chrom_dict in genome_summaries.assemblies[0]['assembly']['chromosomes']:
+            if chrom_dict.accession_version != None:
+                chromosomes.append(chrom_dict.accession_version)
+                sizes.append(int(chrom_dict.length))
+            
+    elif (not chromosomes) or (not sizes):
+        st.warning(f"No genomes found for organism: {organism_name}")
+
+    return pd.DataFrame({'Chromosome': chromosomes, 'Size (bp)': sizes})
 
 
 def fetch_gene_metadata(gene_ids):
@@ -331,9 +356,8 @@ def display_gene_meta(gene_metadata, gene_ids: list) -> list:
     else:
         st.warning(f'No gene ID metadata found for {gene_ids}')
 
+def get_chrom_num(key: str, filtered_gene_meta_df=None) -> str:
 
-def get_chrom_num(key: str) -> str:
-    
     chrom_dict_regia = {
         'NC_049901.1': 'chr01',
         'NC_049902.1': 'chr02',
@@ -372,12 +396,17 @@ def get_chrom_num(key: str) -> str:
         'NC_054609.1': 'chr16'
     }
 
-    if key in chrom_dict_regia.keys():
-        return chrom_dict_regia[key]
-    elif key in chrom_dict_microcarpa.keys():
-        return chrom_dict_microcarpa[key]
-    else:
-        return None
+    # Check in pre-defined dictionaries
+    chrom_name = chrom_dict_regia.get(key) or chrom_dict_microcarpa.get(key)
+    if not chrom_name and filtered_gene_meta_df is not None:
+        # Generate a dictionary from user-uploaded metadata
+        chrom_dict_others = dict(zip(
+            filtered_gene_meta_df['RefSeq seq accession'],
+            filtered_gene_meta_df['Chromosome name']  # Or another column if required
+        ))
+        chrom_name = chrom_dict_others.get(key)
+    
+    return chrom_name or key  # Fallback to key if no match found
 
 
 def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, genomic_ranges, species_selection) -> None:
@@ -405,10 +434,16 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
             full_data['color_' + str(index)] = get_colormap(desired_data)
 
         for chrom_num, sector_obj in enumerate(circos.sectors):
-            
+            # Map the sector name using get_chrom_num
+            sector_name = get_chrom_num(sector_obj.name)
+            if sector_name is None:
+                print(f"Warning: No mapping found for sector: {sector_obj.name}")
+            else:
+                print(f"Plotting sector: {sector_obj.name} -> {sector_name}")
+                
             # Plot sector name
-            sector_obj.text(f"{get_chrom_num(sector_obj.name)}", r=110, size=10)
-
+            sector_obj.text(f"{sector_name}", r=110, size=10)
+    
             # Add sector with correct sizing per number of tracks
             track = sector_obj.add_track((lower, upper), r_pad_ratio=0.1)
             track.axis()
@@ -436,6 +471,8 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
                 
                 # Add y-ticks only on the left side of the chr01 sector
                 if get_chrom_num(sector_obj.name) == 'chr01':  
+                    track.yticks([0, 1], list("-+"), vmin=0, vmax=1, side="left")
+                elif get_chrom_num(sector_obj.name) == '1':  
                     track.yticks([0, 1], list("-+"), vmin=0, vmax=1, side="left")
 
             # Only add tick marks to tracks that are not bar or line    
@@ -552,7 +589,7 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
 
     species_legend = circos.ax.legend(
         handles=[plt.Line2D([0], [0], color="black", linestyle='None', marker= "o")],
-        labels=[species_selection],
+        labels=species_selection,
         loc='center',
         fontsize=10,
         title="Species",
@@ -560,6 +597,7 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
         )
  
     circos.ax.add_artist(species_legend)
+
     # Add legend for selected gene IDs
     if 'Gene Location' in [col for col, _, _, _, _ in track_cols]:
          
