@@ -586,12 +586,11 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
     fig = circos.plotfig()
 
     species_legend = circos.ax.legend(
-        handles=[plt.Line2D([0], [0], color="black", linestyle='None', marker= "o")],
-        labels=species_selection,
+        handles=[plt.Line2D([0], [0], color="black", linestyle='None')],
+        labels=[species_selection],
+        bbox_to_anchor=(0.48, 0.5),
         loc='center',
-        fontsize=10,
-        title="Species",
-        title_fontsize=12  # Set font size for the title
+        fontsize=12
         )
  
     circos.ax.add_artist(species_legend)
