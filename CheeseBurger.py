@@ -186,7 +186,7 @@ def main() -> None:
         try:
             if st.button('Click to plot!'):
                 st.write('Plotting!')
-                display_circos_plot(data, full_data, track_cols, bar_color, genomic_ranges, species_selection)
+                display_circos_plot(data, full_data, track_cols, bar_color, genomic_ranges, species_selection, genome_meta)
         except (KeyError):
             st.error('WARNING: There was an error displaying the plot.')
             return
@@ -356,7 +356,7 @@ def display_gene_meta(gene_metadata, gene_ids: list) -> list:
     else:
         st.warning(f'No gene ID metadata found for {gene_ids}')
 
-def get_chrom_num(key: str, filtered_gene_meta_df=None) -> str:
+def get_chrom_num(key: str, genome_meta=None, species_selection: str = None) -> str:
 
     chrom_dict_regia = {
         'NC_049901.1': 'chr01',
@@ -396,20 +396,29 @@ def get_chrom_num(key: str, filtered_gene_meta_df=None) -> str:
         'NC_054609.1': 'chr16'
     }
 
-    # Check in pre-defined dictionaries
-    chrom_name = chrom_dict_regia.get(key) or chrom_dict_microcarpa.get(key)
-    if not chrom_name and filtered_gene_meta_df is not None:
-        # Generate a dictionary from user-uploaded metadata
-        chrom_dict_others = dict(zip(
-            filtered_gene_meta_df['RefSeq seq accession'],
-            filtered_gene_meta_df['Chromosome name']  # Or another column if required
-        ))
-        chrom_name = chrom_dict_others.get(key)
-    
-    return chrom_name or key  # Fallback to key if no match found
+    # Select the appropriate dictionary based on species selection
+    species_dict = None
+    if species_selection == 'Juglans regia':
+        species_dict = chrom_dict_regia
+    elif species_selection == 'Juglans microcarpa':
+        species_dict = chrom_dict_microcarpa
 
+    # Attempt to find mapping in species-specific dictionary
+    chrom_name = species_dict.get(key) if species_dict else None
 
-def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, genomic_ranges, species_selection) -> None:
+    # If no match in pre-defined dictionaries, check the metadata
+    if not chrom_name and genome_meta is not None:
+        if 'Accession' in genome_meta.columns and 'Chromosome' in genome_meta.columns:
+            chrom_dict_others = dict(zip(
+                genome_meta['Accession'],
+                genome_meta['Chromosome']
+            ))
+            chrom_name = chrom_dict_others.get(key)
+
+    # Fallback to key if no match found
+    return chrom_name or key
+
+def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, genomic_ranges, species_selection, genome_meta) -> None:
     
     # Prepare Circos plot with sectors (using chromosome sizes)
     sectors = {str(row[1]['Chromosome']): row[1]['Size (bp)'] for row in data.iterrows()}
@@ -435,7 +444,7 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
 
         for chrom_num, sector_obj in enumerate(circos.sectors):
             # Map the sector name using get_chrom_num
-            sector_name = get_chrom_num(sector_obj.name)
+            sector_name = get_chrom_num(sector_obj.name, genome_meta, species_selection)
             if sector_name is None:
                 st.warning(f"Warning: No mapping found for sector: {sector_obj.name}")
                 
