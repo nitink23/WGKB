@@ -56,12 +56,26 @@ def main() -> None:
         except KeyError:
             st.warning('WARNING: The columns entered cannot be parsed correctly.')
 
+    # Initialize session state for past searches
+    st.session_state.setdefault("past_gene_ids", [])
+
+    # Dropdown to show past searches
+    selected_past_search = st.selectbox(
+        "Select from past searches:", 
+        options=[""] + st.session_state.past_gene_ids, 
+        help="Select a past search result to auto-fill the Gene ID input."
+    ) if st.session_state.past_gene_ids else ""
+
     # User input for multiple gene IDs
-    gene_id_input = st.text_input('Enter Gene IDs (space-separated)')
+    gene_id_input = st.text_input('Enter Gene IDs (space-separated)', value=selected_past_search)
     genomic_ranges = []
 
     if gene_id_input:
         
+        # Save unique inputs to session state
+        if gene_id_input not in st.session_state.past_gene_ids:
+            st.session_state.past_gene_ids.append(gene_id_input)
+            
         gene_ids = [gene_id.strip() for gene_id in gene_id_input.split() if gene_id.strip().isdigit()]
         
         # Ensure gene_ids are in correct format
