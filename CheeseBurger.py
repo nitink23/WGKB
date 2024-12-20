@@ -590,7 +590,8 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
         labels=[species_selection],
         bbox_to_anchor=(0.48, 0.5),
         loc='center',
-        fontsize=12
+        fontsize=12,
+        prop={'style': 'italic'}
         )
  
     circos.ax.add_artist(species_legend)
