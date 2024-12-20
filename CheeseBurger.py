@@ -14,7 +14,7 @@ def main() -> None:
     st.markdown("###### Created by Paulo Zaini, Adam Hetherwick, Hibiki Ono, and Nitin Kanchi")
 
     # Allow user to select which species they would like to visualize
-    species_selection = st.selectbox('Select the genome you would like to visualize', ['Juglans regia', 'Juglans microcarpa', 'Other'])
+    species_selection = st.selectbox('Select the genome you would like to visualize', ['Juglans regia', 'Juglans microcarpa x Juglans regia', 'Other'])
     
     if species_selection == 'Other':
         species_selection = st.text_input('Enter the name of the species you would like to visualize.')
@@ -32,7 +32,7 @@ def main() -> None:
     if species_selection == 'Juglans regia':
         url = 'https://raw.githubusercontent.com/nitink23/WGKB/main/juglans_regia.tsv'
 
-    elif species_selection == 'Juglans microcarpa':
+    elif species_selection == 'Juglans microcarpa x Juglans regia':
         url = 'https://raw.githubusercontent.com/nitink23/WGKB/main/juglans_microcarpa.tsv'
 
     st.markdown("#### Enter Gene IDs and/or a gene expression file to visualize")
@@ -400,7 +400,7 @@ def get_chrom_num(key: str, genome_meta=None, species_selection: str = None) -> 
     species_dict = None
     if species_selection == 'Juglans regia':
         species_dict = chrom_dict_regia
-    elif species_selection == 'Juglans microcarpa':
+    elif species_selection == 'Juglans microcarpa x Juglans regia':
         species_dict = chrom_dict_microcarpa
 
     # Attempt to find mapping in species-specific dictionary
