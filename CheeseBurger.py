@@ -11,7 +11,7 @@ import numpy as np
 def main() -> None:
 
     st.title('Custom Circos Plot Generator with Gene Metadata Integration')
-    st.markdown("###### Created by Paulo Zaini, Adam Hetherwick, Hibiki Ono, and Nitin Kanchi")
+    st.markdown("###### Created by Adam Hetherwick, Hibiki Ono, Nitin Kanchi, and Dr. Paulo Zaini")
 
     # Allow user to select which species they would like to visualize
     species_selection = st.selectbox('Select the genome you would like to visualize', ['Juglans regia', 'Juglans microcarpa x Juglans regia', 'Other'])
@@ -115,15 +115,17 @@ def main() -> None:
         for track in range(num_tracks-track_correction):
 
             desired_col = st.selectbox(f"Select which data you would like to visualize in track {track+1}:", available_cols)
+            include_gene_loc = False
 
             if desired_col == 'Gene Location':
                 
                 desired_data = genomic_ranges
                 omit_pct = 0
-                include_gene_loc = False
 
             else:
-                include_gene_loc = st.checkbox('Would you like to highlight selected genes in this track?', key='include_gene_loc_' + str(track))
+                if gene_id_input:
+                    include_gene_loc = st.checkbox('Would you like to highlight selected genes in this track?', key='include_gene_loc_' + str(track))
+
                 desired_data = full_data[desired_col]
 
                 if invalid_col(full_data, desired_col):
@@ -209,7 +211,7 @@ def get_chrom_locations(organism_name: str) -> pd.DataFrame:
                 sizes.append(int(chrom_dict.length))
             
     elif (not chromosomes) or (not sizes):
-        st.warning(f"No genomes found for organism: {organism_name}")
+        st.warning(f"No genome found for organism: {organism_name}")
 
     return pd.DataFrame({'Chromosome': chromosomes, 'Size (bp)': sizes})
 
@@ -356,58 +358,13 @@ def display_gene_meta(gene_metadata, gene_ids: list) -> list:
     else:
         st.warning(f'No gene ID metadata found for {gene_ids}')
 
-def get_chrom_num(key: str, genome_meta=None, species_selection: str = None) -> str:
 
-    chrom_dict_regia = {
-        'NC_049901.1': 'chr01',
-        'NC_049902.1': 'chr02',
-        'NC_049903.1': 'chr03',
-        'NC_049904.1': 'chr04',
-        'NC_049905.1': 'chr05',
-        'NC_049906.1': 'chr06',
-        'NC_049907.1': 'chr07',
-        'NC_049908.1': 'chr08',
-        'NC_049909.1': 'chr09',
-        'NC_049910.1': 'chr10',
-        'NC_049911.1': 'chr11',
-        'NC_049912.1': 'chr12',
-        'NC_049913.1': 'chr13',
-        'NC_049914.1': 'chr14',
-        'NC_049915.1': 'chr15',
-        'NC_049916.1': 'chr16',
-        'NC_028617.1': 'Pltd'}
+def get_chrom_num(key: str, genome_meta=None) -> str:
 
-    chrom_dict_microcarpa = {
-        'NC_054594.1': 'chr01', 
-        'NC_054595.1': 'chr02', 
-        'NC_054596.1': 'chr03', 
-        'NC_054597.1': 'chr04', 
-        'NC_054598.1': 'chr05', 
-        'NC_054599.1': 'chr06',
-        'NC_054600.1': 'chr07', 
-        'NC_054601.1': 'chr08', 
-        'NC_054602.1': 'chr09', 
-        'NC_054603.1': 'chr10', 
-        'NC_054604.1': 'chr11', 
-        'NC_054605.1': 'chr12', 
-        'NC_054606.1': 'chr13', 
-        'NC_054607.1': 'chr14', 
-        'NC_054608.1': 'chr15', 
-        'NC_054609.1': 'chr16'
-    }
-
-    # Select the appropriate dictionary based on species selection
-    species_dict = None
-    if species_selection == 'Juglans regia':
-        species_dict = chrom_dict_regia
-    elif species_selection == 'Juglans microcarpa x Juglans regia':
-        species_dict = chrom_dict_microcarpa
-
-    # Attempt to find mapping in species-specific dictionary
-    chrom_name = species_dict.get(key) if species_dict else None
+    chrom_name = None
 
     # If no match in pre-defined dictionaries, check the metadata
-    if not chrom_name and genome_meta is not None:
+    if genome_meta is not None:
         if 'Accession' in genome_meta.columns and 'Chromosome' in genome_meta.columns:
             chrom_dict_others = dict(zip(
                 genome_meta['Accession'],
@@ -417,6 +374,7 @@ def get_chrom_num(key: str, genome_meta=None, species_selection: str = None) -> 
 
     # Fallback to key if no match found
     return chrom_name or key
+
 
 def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, genomic_ranges, species_selection, genome_meta) -> None:
     
@@ -444,7 +402,8 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
 
         for chrom_num, sector_obj in enumerate(circos.sectors):
             # Map the sector name using get_chrom_num
-            sector_name = get_chrom_num(sector_obj.name, genome_meta, species_selection)
+            sector_name = get_chrom_num(sector_obj.name, genome_meta)
+
             if sector_name is None:
                 st.warning(f"Warning: No mapping found for sector: {sector_obj.name}")
                 
@@ -493,7 +452,7 @@ def display_circos_plot(data: dict, full_data, track_cols: list, bar_color, geno
             if desired_col != 'Gene Location':
 
                 # Get subset from full_data of all the rows with a specific chromosome
-                chr_data = full_data[full_data['Chromosome'] == str(chrom_num+1)].reset_index(drop=True)
+                chr_data = full_data[full_data['Chromosome'] == sector_name].reset_index(drop=True)
                 
                 if full_data is not None:
 
