@@ -6,8 +6,32 @@ from ncbi.datasets import GeneApi, GenomeApi
 from ncbi.datasets.openapi import ApiClient
 from ncbi.datasets.openapi.rest import ApiException
 import numpy as np
+from Bio import Entrez
+import time
 
-
+def fetch_species_suggestions(query):
+    """Fetch species suggestions using the Entrez API."""
+    try:
+        handle = Entrez.esearch(db="taxonomy", term=query, retmax=5)
+        record = Entrez.read(handle)
+        handle.close()
+        time.sleep(0.4)  # Wait 400 ms (3 requests/second = 1 request/0.333s)
+        
+        if 'IdList' in record and record['IdList']:
+            species_names = []
+            for tax_id in record['IdList']:
+                tax_handle = Entrez.efetch(db="taxonomy", id=tax_id, retmode="xml")
+                tax_record = Entrez.read(tax_handle)
+                tax_handle.close()
+                species_names.append(tax_record[0]['ScientificName'])
+                time.sleep(0.4)  # Rate limiting for subsequent requests
+            return species_names
+        else:
+            return []
+    except Exception as e:
+        st.error(f"Error fetching species suggestions: {e}")
+        return []
+        
 def main() -> None:
 
     st.title('Custom Circos Plot Generator with Gene Metadata Integration')
@@ -17,7 +41,14 @@ def main() -> None:
     species_selection = st.selectbox('Select the genome you would like to visualize', ['Juglans regia', 'Juglans microcarpa x Juglans regia', 'Other'])
     
     if species_selection == 'Other':
-        species_selection = st.text_input('Enter the name of the species you would like to visualize.')
+        species_query = st.text_input('Enter the name of the species you would like to visualize.')
+        
+        if species_query:
+            suggestions = fetch_species_suggestions(species_query)
+            if suggestions:
+                species_selection = st.selectbox('Did you mean:', suggestions)
+            else:
+                st.warning('No suggestions found. Please check the spelling.')
         st.markdown('To find the gene metadata file:\n'
                     '1. Go to https://www.ncbi.nlm.nih.gov/ \n'
                     '2. Search your species (Prunus persica for example) \n'
@@ -101,6 +132,21 @@ def main() -> None:
             genomic_ranges = []
             st.error(f"No valid genomic ranges found for Gene IDs: {', '.join(gene_ids)}")
             return
+
+        if gene_exp_file:
+
+            # Filter data
+            selected_data = full_data[full_data['Gene ID'].astype(str).str.strip().isin(gene_ids)]
+
+
+            if selected_data.empty:
+                st.warning(
+                    "No matching Gene IDs found. "
+                    "Please ensure the Gene IDs match the dataset. "
+                    "Check for data type mismatches or extra spaces."
+                )
+            else:
+                st.write("Matching Data:", selected_data)
 
     if full_data is not None or gene_id_input:
         
