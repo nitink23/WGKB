@@ -34,7 +34,7 @@ def fetch_species_suggestions(query):
         
 def main() -> None:
 
-    st.title('Custom Circos Plot Generator with Gene Metadata Integration')
+    st.title('Custom Circos Plot Generator')
     st.markdown("###### Created by Adam Hetherwick, Hibiki Ono, Nitin Kanchi, and Dr. Paulo Zaini")
 
     # Feedback button
@@ -52,7 +52,7 @@ def main() -> None:
         
         if species_query:
             suggestions = fetch_species_suggestions(species_query)
-            if suggestions:
+            if suggestions != species_query:
                 species_selection = st.selectbox('Did you mean:', suggestions)
             else:
                 st.warning('No suggestions found. Please check the spelling.')
